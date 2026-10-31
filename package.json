@@ -1,6 +1,6 @@
 {
   "name": "aram-overlay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Always-on-top ARAM champion-select overlay: ranks picks, plans party swaps, detects ult combos.",
   "main": "dist/main.js",
   "private": true,
@@ -63,6 +63,12 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.exe"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "ebialobrzeski",
+      "repo": "aram_overlay",
+      "releaseType": "release"
     }
   }
 }

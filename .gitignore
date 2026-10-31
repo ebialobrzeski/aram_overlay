@@ -2,3 +2,4 @@ node_modules/
 dist/
 debug-dumps/
 release/
+deploy/nas/.env
