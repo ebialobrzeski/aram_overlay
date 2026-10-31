@@ -15,6 +15,7 @@ const api = {
   calibrateStart: (): Promise<void> => ipcRenderer.invoke('badges:calibrate:start'),
   calibrationSave: (anchors: BadgeAnchors): Promise<void> => ipcRenderer.invoke('badges:calibrate:save', anchors),
   calibrationCancel: (): Promise<void> => ipcRenderer.invoke('badges:calibrate:cancel'),
+  autoCalibrate: (): Promise<string> => ipcRenderer.invoke('badges:auto'),
   closeWindow: () => ipcRenderer.send('window:close'),
   minimize: () => ipcRenderer.send('window:minimize'),
 };

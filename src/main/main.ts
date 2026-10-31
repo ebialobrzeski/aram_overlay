@@ -8,6 +8,8 @@ import { discover, Lcu } from './lcu';
 import { StateBuilder } from './state';
 import { Store } from './store';
 import { BadgeWindow } from './badges';
+import { autoCalibrate } from './autocal';
+import type { Gray } from '../shared/match';
 import type { BadgeAnchors } from '../shared/types';
 import { log, safeJson } from './log';
 import { writeFileSync } from 'node:fs';
@@ -36,6 +38,43 @@ let frozenAnalysis: Analysis | null = null;
 let frozenPhaseLogged = '';
 let lastState: TeamState = { phase: 'None', isAram: false, players: [], bench: [], rerollsRemaining: 0, connected: false, source: 'lcu' };
 let lastFrozenFlag = false;
+const iconGrayCache = new Map<number, Gray>();
+let autoCalKey = '';      // champion select for which auto-calibration already ran
+let autoCalRunning = false;
+let autoCalAttempts = 0;
+
+/** Screenshot-based calibration: once per champion select, as soon as a few icons are on the table. */
+async function maybeAutoCalibrate(state: TeamState, force = false): Promise<string> {
+  if (autoCalRunning) return 'already running';
+  if (!lcu || demo) return 'needs the League client';
+  if (state.phase !== 'ChampSelect' || !state.players.length) return 'no champion select';
+  const picked = state.players.filter(p => p.championId > 0).length;
+  if (state.bench.length + picked < 3) return 'not enough champions on screen yet';
+  const key = `${state.players.map(p => p.cellId).join(',')}:${state.bench.slice(0, 3).join(',')}`;
+  if (!force && (!store.settings.badges.auto || key === autoCalKey || autoCalAttempts >= 4 || badges?.calibrating)) return 'skipped';
+  autoCalRunning = true;
+  try {
+    const res = await autoCalibrate(lcu, state, store.settings.badges, iconGrayCache);
+    autoCalAttempts++;
+    if (!res) return 'client could not be captured';
+    const { fit } = res;
+    const okBench = fit.benchMatches >= 2 && fit.benchScore >= 0.55;
+    const okTeam = fit.teamMatches >= 2 && fit.teamScore >= 0.55;
+    if (!okBench && !okTeam) return `icons not found (${fit.notes.join('; ')})`;
+    const next = { ...store.settings.badges, calibratedBy: 'auto' as const };
+    if (okBench) { next.benchFirst = fit.anchors.benchFirst; next.benchLast = fit.anchors.benchLast; }
+    if (okTeam) { next.teamFirst = fit.anchors.teamFirst; next.teamLast = fit.anchors.teamLast; }
+    store.updateSettings({ badges: next });
+    settingsVersion++;
+    autoCalKey = key; autoCalAttempts = 0;
+    const msg = `auto-calibrated: bench ${okBench ? `${fit.benchMatches} icons` : 'kept'}, team ${okTeam ? `${fit.teamMatches} icons` : 'kept'} (${res.ms}ms)`;
+    log.info(msg);
+    return msg;
+  } catch (e) {
+    log.warn('auto-calibration failed', e);
+    return `failed: ${(e as Error).message}`;
+  } finally { autoCalRunning = false; }
+}
 const IN_GAME_PHASES = new Set(['GameStart', 'InProgress', 'Reconnect', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame']);
 
 const DISCONNECTED: TeamState = { phase: 'None', isAram: false, players: [], bench: [], rerollsRemaining: 0, connected: false, source: 'lcu' };
@@ -142,6 +181,8 @@ async function tick() {
     }
     if (!frozen && state.phase === 'ChampSelect' && state.players.length) { frozenState = state; frozenAnalysis = lastAnalysis; }
     lastState = state; lastFrozenFlag = frozen;
+    if (state.phase !== 'ChampSelect') { autoCalKey = ''; autoCalAttempts = 0; }
+    else if (!frozen) void maybeAutoCalibrate(state);
 
     const icons: Record<number, string> = {};
     const ids = new Set<number>([...state.players.map(p => p.championId), ...state.bench, ...(lastAnalysis?.plans.flatMap(p => p.assignment) ?? []), ...(lastAnalysis?.teamForm.flatMap(t => t.top.map(e => e.championId)) ?? [])]);
@@ -221,11 +262,12 @@ app.whenReady().then(() => {
   ipcMain.handle('demo:shuffle', () => { demoState.shuffle(); lastKey = ''; void tick(); });
   ipcMain.handle('badges:calibrate:start', () => { badges?.startCalibration(); void tick(); });
   ipcMain.handle('badges:calibrate:save', (_e, anchors: BadgeAnchors) => {
-    store.updateSettings({ badges: { ...store.settings.badges, ...anchors } });
+    store.updateSettings({ badges: { ...store.settings.badges, ...anchors, calibratedBy: 'manual' } });
     log.info('badge anchors saved', safeJson(anchors));
     badges?.endCalibration(); settingsVersion++; void tick();
   });
   ipcMain.handle('badges:calibrate:cancel', () => { badges?.endCalibration(); void tick(); });
+  ipcMain.handle('badges:auto', async () => { const r = await maybeAutoCalibrate(lastState, true); void tick(); return r; });
   ipcMain.on('window:close', () => app.quit());
   ipcMain.on('window:minimize', () => win?.minimize());
 

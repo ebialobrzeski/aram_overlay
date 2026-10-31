@@ -35,7 +35,10 @@
         <div id="weights"></div>
       </details>
       <div class="row toggle"><label><input type="checkbox" id="opt-badges" /> Show score badges on the League client (bench + team rows)</label>
-        <button id="btn-calibrate" title="Drag markers onto the bench and team portraits in the client">Calibrate positions</button>
+        <label><input type="checkbox" id="opt-badges-auto" /> Auto-calibrate at the start of every champion select</label>
+        <button id="btn-autocal" title="Find the champion icons in a screenshot of the client (needs a champion select)">Auto-calibrate now</button>
+        <button id="btn-calibrate" title="Drag markers onto the bench and team portraits in the client">Calibrate by hand</button>
+        <span id="autocal-status" class="note"></span>
         <label>Badge size <input type="range" id="opt-badge-scale" min="0.7" max="1.6" step="0.1" /></label></div>
       <div class="row toggle"><label><input type="checkbox" id="opt-nonparty" /> Suggest trades with non-party teammates (they must accept)</label></div>
       <div class="row toggle"><label><input type="checkbox" id="opt-assume-owned" /> Assume party members own every bench champion</label></div>

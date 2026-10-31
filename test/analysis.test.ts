@@ -144,3 +144,39 @@ test('badges: one per bench slot with my delta, best highlighted, team rows get 
   const self = b.find(x => x.kind === 'self');
   assert.ok(self && self.text.includes('Malphite'));
 });
+
+import { deriveAnchors, matchTemplates, resizeGray, type Gray, type Template } from '../src/shared/match';
+
+function fakeIcon(seed: number, size: number): Gray {
+  // deterministic texture so every icon is distinct
+  const data = new Float32Array(size * size);
+  let s = seed * 9301 + 49297;
+  // smooth, icon-like texture: a few sinusoids with seed-dependent phases
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) data[y * size + x] = 120 + 50 * Math.sin(x / 6 + seed) * Math.cos(y / 5 - seed / 3) + 40 * Math.sin((x + y) / 9 + seed * 1.7);
+  void s;
+  return { width: size, height: size, data };
+}
+
+test('matcher recovers bench and team anchors from a synthetic screenshot', () => {
+  const W = 640, H = 360;
+  const img: Gray = { width: W, height: H, data: new Float32Array(W * H).fill(60) };
+  const paste = (icon: Gray, cx: number, cy: number) => { for (let y = 0; y < icon.height; y++) for (let x = 0; x < icon.width; x++) img.data[(cy - icon.height / 2 + y) * W + cx - icon.width / 2 + x] = icon.data[y * icon.width + x]; };
+  const icons = new Map<string, Gray>();
+  const benchKeys = new Map<string, number>(), teamKeys = new Map<string, number>();
+  const shown = 30; // icon size on "screen"
+  for (let i = 0; i < 4; i++) { const k = `b${i}`; icons.set(k, fakeIcon(10 + i, 64)); benchKeys.set(k, i); paste(resizeGray(icons.get(k)!, shown, shown), 220 + i * 36, 324); }
+  for (let i = 0; i < 3; i++) { const k = `t${i}`; icons.set(k, fakeIcon(50 + i, 64)); teamKeys.set(k, i); paste(resizeGray(icons.get(k)!, shown, shown), 70, 90 + i * 48); }
+  const templates: Template[] = [];
+  for (const [k, g] of icons) for (const s of [24, 30, 36]) templates.push({ key: k, size: s, data: resizeGray(g, s, s).data });
+  const matches = [
+    ...matchTemplates(img, templates.filter(t => benchKeys.has(t.key)), { x: 0, y: 250, width: W, height: 110 }),
+    ...matchTemplates(img, templates.filter(t => teamKeys.has(t.key)), { x: 0, y: 30, width: 260, height: 300 }),
+  ];
+  const prev = DEFAULT_SETTINGS.badges;
+  const fit = deriveAnchors({ width: W, height: H }, matches, benchKeys, teamKeys, 10, 5, prev);
+  assert.equal(fit.benchMatches, 4, JSON.stringify(fit));
+  assert.equal(fit.teamMatches, 3, JSON.stringify(fit));
+  assert.ok(Math.abs(fit.anchors.benchFirst.x * W - 220) < 3 && Math.abs(fit.anchors.benchFirst.y * H - 324) < 3, JSON.stringify(fit.anchors));
+  assert.ok(Math.abs(fit.anchors.benchLast.x * W - (220 + 9 * 36)) < 6);
+  assert.ok(Math.abs(fit.anchors.teamFirst.y * H - 90) < 3 && Math.abs(fit.anchors.teamLast.y * H - (90 + 4 * 48)) < 6);
+});

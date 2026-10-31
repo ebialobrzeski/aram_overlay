@@ -14,6 +14,7 @@ interface Api {
   IsIconic: (hwnd: unknown) => boolean;
   IsWindowVisible: (hwnd: unknown) => boolean;
   GetForegroundWindow: () => unknown;
+  GetWindowRect: (hwnd: unknown, rect: { left: number; top: number; right: number; bottom: number }) => boolean;
   address: (ptr: unknown) => bigint | number;
 }
 
@@ -35,6 +36,7 @@ function load(): Api | null {
       IsIconic: user32.func('bool __stdcall IsIconic(void* hwnd)'),
       IsWindowVisible: user32.func('bool __stdcall IsWindowVisible(void* hwnd)'),
       GetForegroundWindow: user32.func('void* __stdcall GetForegroundWindow()'),
+      GetWindowRect: user32.func('bool __stdcall GetWindowRect(void* hwnd, _Out_ RECT* rect)'),
       address: (p: unknown) => koffi.address(p),
     };
     log.info('win32 window tracking ready (koffi)');
@@ -65,6 +67,17 @@ export function findLeagueClient(): ClientWindow | null {
     visible: a.IsWindowVisible(hwndPtr),
     foreground: BigInt(a.address(a.GetForegroundWindow())),
   };
+}
+
+/** Outer window rect (physical pixels) of the client window found earlier. */
+export function windowRectOf(hwnd: bigint): ScreenRect | null {
+  const a = load();
+  if (!a) return null;
+  const ptr = a.FindWindowW('RCLIENT', 'League of Legends');
+  if (BigInt(a.address(ptr)) !== hwnd) return null;
+  const r = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (!a.GetWindowRect(ptr, r)) return null;
+  return { x: r.left, y: r.top, width: r.right - r.left, height: r.bottom - r.top };
 }
 
 /** HWND of an Electron window (getNativeWindowHandle returns the handle as a little-endian buffer). */

@@ -88,6 +88,8 @@ export interface BadgeAnchors { benchFirst: Anchor; benchLast: Anchor; teamFirst
 export interface BadgeSettings extends BadgeAnchors {
   enabled: boolean;
   scale: number; // badge size multiplier
+  auto: boolean; // find the icons in a screenshot of the client at the start of every champion select
+  calibratedBy: 'none' | 'auto' | 'manual';
 }
 export interface Badge extends Anchor { text: string; kind: 'pos' | 'neg' | 'zero' | 'best' | 'hint' | 'self'; title?: string }
 export interface BadgeModel {

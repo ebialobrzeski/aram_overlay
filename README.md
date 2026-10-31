@@ -19,10 +19,13 @@ select: one per bench champion (your delta, the best one highlighted) and one pe
 of that player, or your own best move). This is a transparent, click-through window that follows the client
 window, so nothing is injected into the client.
 
-The badge positions are fractions of the client area. The defaults are guesses, so during a champion select open ⚙
-→ **Calibrate positions**, drag *Bench 1* / *Bench 10* onto the first and tenth bench slots and *Row 1* / *Row 5*
-onto the top and bottom teammate portraits, then Save. It is remembered, and it scales with the client window size.
-Toggle the badges or change their size in ⚙.
+The badge positions are found automatically: at the start of every champion select the overlay takes a
+screenshot of the client window, locates the bench and team champion icons in it (template matching against the
+icons from the client, in a worker thread, about a second) and derives the positions from where they are. The
+result is remembered, so the badges are right from the first second of later champion selects, and it adapts if
+Riot moves things. ⚙ has **Auto-calibrate now**, the per-champion-select toggle, a badge size slider, and
+**Calibrate by hand** (drag *Bench 1* / *Bench 10* and *Row 1* / *Row 5* onto the client) as a fallback.
+In debug mode the log reports how many icons were found and with what confidence.
 
 ## Run
 

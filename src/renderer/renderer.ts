@@ -224,6 +224,8 @@ function buildSettings() {
   ($('#opt-badges') as HTMLInputElement).onchange = e => void api.setSettings({ badges: { ...last!.settings.badges, enabled: (e.target as HTMLInputElement).checked } });
   ($('#opt-badge-scale') as HTMLInputElement).oninput = e => void api.setSettings({ badges: { ...last!.settings.badges, scale: Number((e.target as HTMLInputElement).value) } });
   $('#btn-calibrate').onclick = () => void api.calibrateStart();
+  ($('#opt-badges-auto') as HTMLInputElement).onchange = e => void api.setSettings({ badges: { ...last!.settings.badges, auto: (e.target as HTMLInputElement).checked } });
+  $('#btn-autocal').onclick = async () => { $('#autocal-status').textContent = 'working…'; $('#autocal-status').textContent = await api.autoCalibrate(); };
   ($('#opt-nonparty') as HTMLInputElement).onchange = e => void api.setSettings({ includeNonPartyTrades: (e.target as HTMLInputElement).checked });
   ($('#opt-assume-owned') as HTMLInputElement).onchange = e => void api.setSettings({ assumePartyOwnsAll: (e.target as HTMLInputElement).checked });
   ($('#opt-comfort') as HTMLTextAreaElement).onchange = e => void api.setSettings({ comfortOverrides: (e.target as HTMLTextAreaElement).value });
@@ -243,6 +245,8 @@ function syncSettings(s: Settings) {
     if (input !== active) { input.value = String(s.weights[k]); $(`[data-wv="${k}"]`).textContent = String(s.weights[k]); }
   }
   ($('#opt-badges') as HTMLInputElement).checked = s.badges.enabled;
+  ($('#opt-badges-auto') as HTMLInputElement).checked = s.badges.auto;
+  const cal = $('#autocal-status'); if (!cal.textContent || cal.textContent.startsWith('positions:')) cal.textContent = `positions: ${s.badges.calibratedBy === 'none' ? 'defaults (not calibrated yet)' : s.badges.calibratedBy}`;
   const bs = $('#opt-badge-scale') as HTMLInputElement; if (bs !== active) bs.value = String(s.badges.scale);
   ($('#opt-nonparty') as HTMLInputElement).checked = s.includeNonPartyTrades;
   ($('#opt-assume-owned') as HTMLInputElement).checked = s.assumePartyOwnsAll;
