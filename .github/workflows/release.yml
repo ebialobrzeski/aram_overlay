@@ -31,8 +31,12 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Package (installer + portable, Windows targets cross-built on Linux)
-        run: npm run package
+      # NSIS on Linux needs Wine, which the runner image lacks: package inside electron-builder's image instead.
+      - name: Package (installer + portable, inside electronuserland/builder:wine)
+        run: |
+          docker info >/dev/null 2>&1 || { echo "::error::Docker is not available on this runner (mount /var/run/docker.sock into the runner container)"; exit 1; }
+          docker run --rm             -v "$PWD":/project -w /project             -v aram-overlay-electron-cache:/root/.cache/electron             -v aram-overlay-builder-cache:/root/.cache/electron-builder             electronuserland/builder:wine             sh -c "node scripts/build.mjs && npx electron-builder --win --publish never"
+          ls -l release/*.exe
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
