@@ -7,12 +7,15 @@ import { DemoState } from './demo';
 import { discover, Lcu } from './lcu';
 import { StateBuilder } from './state';
 import { Store } from './store';
+import { BadgeWindow } from './badges';
+import type { BadgeAnchors } from '../shared/types';
 import { log, safeJson } from './log';
 import { writeFileSync } from 'node:fs';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'lcu', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }]);
 
 let win: BrowserWindow | null = null;
+let badges: BadgeWindow | null = null;
 let store: Store;
 let registry: ChampionRegistry;
 let lcu: Lcu | null = null;
@@ -31,6 +34,8 @@ let ticking = false;
 let frozenState: TeamState | null = null;
 let frozenAnalysis: Analysis | null = null;
 let frozenPhaseLogged = '';
+let lastState: TeamState = { phase: 'None', isAram: false, players: [], bench: [], rerollsRemaining: 0, connected: false, source: 'lcu' };
+let lastFrozenFlag = false;
 const IN_GAME_PHASES = new Set(['GameStart', 'InProgress', 'Reconnect', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame']);
 
 const DISCONNECTED: TeamState = { phase: 'None', isAram: false, players: [], bench: [], rerollsRemaining: 0, connected: false, source: 'lcu' };
@@ -56,6 +61,7 @@ function createWindow() {
   win.on('move', saveBounds);
   win.on('resize', saveBounds);
   win.on('closed', () => { win = null; });
+  badges?.registerOwnWindow(win);
 }
 
 function comfortOverrides(state: TeamState): Map<number, Set<number>> {
@@ -135,13 +141,15 @@ async function tick() {
       logStateChange(state, Date.now() - t0);
     }
     if (!frozen && state.phase === 'ChampSelect' && state.players.length) { frozenState = state; frozenAnalysis = lastAnalysis; }
+    lastState = state; lastFrozenFlag = frozen;
 
     const icons: Record<number, string> = {};
     const ids = new Set<number>([...state.players.map(p => p.championId), ...state.bench, ...(lastAnalysis?.plans.flatMap(p => p.assignment) ?? []), ...(lastAnalysis?.teamForm.flatMap(t => t.top.map(e => e.championId)) ?? [])]);
     for (const id of ids) icons[id] = registry.iconUrl(id, !!lcu && !demo);
 
-    const payload: UpdatePayload = { state, analysis: lastAnalysis, settings: store.settings, icons, lcuStatus: (demo ? 'Demo mode' : lcuStatus) + (debug ? ' [debug]' : ''), demo, frozen };
+    const payload: UpdatePayload = { state, analysis: lastAnalysis, settings: store.settings, icons, lcuStatus: (demo ? 'Demo mode' : lcuStatus) + (debug ? ' [debug]' : ''), demo, frozen, calibrating: badges?.calibrating ?? false };
     win.webContents.send('update', payload);
+    try { badges?.update(state, lastAnalysis, store.settings.badges, frozen); } catch (e) { log.warn('badge window update failed', e); }
   } catch (e) {
     log.error('tick failed', e);
   } finally {
@@ -211,12 +219,23 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('demo:toggle', () => { demo = !demo; lastKey = ''; void tick(); return demo; });
   ipcMain.handle('demo:shuffle', () => { demoState.shuffle(); lastKey = ''; void tick(); });
+  ipcMain.handle('badges:calibrate:start', () => { badges?.startCalibration(); void tick(); });
+  ipcMain.handle('badges:calibrate:save', (_e, anchors: BadgeAnchors) => {
+    store.updateSettings({ badges: { ...store.settings.badges, ...anchors } });
+    log.info('badge anchors saved', safeJson(anchors));
+    badges?.endCalibration(); settingsVersion++; void tick();
+  });
+  ipcMain.handle('badges:calibrate:cancel', () => { badges?.endCalibration(); void tick(); });
   ipcMain.on('window:close', () => app.quit());
   ipcMain.on('window:minimize', () => win?.minimize());
 
+  badges = new BadgeWindow(path.join(__dirname, 'preload.js'), path.join(__dirname, 'renderer', 'badges.html'));
   createWindow();
+  // the badge window follows the client window: cheap Win32 calls, so poll faster than the client API
+  setInterval(() => { try { badges?.update(frozenState && !lastFrozenFlag ? frozenState : lastState, lastAnalysis, store.settings.badges, lastFrozenFlag); } catch { /* ignore */ } }, 250);
   setInterval(() => void tick(), 1000);
   void tick();
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => badges?.destroy());

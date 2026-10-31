@@ -19,6 +19,8 @@ const state = (team: string[], bench: string[], patch: Partial<TeamState> = {}):
 });
 const settings = (patch: Partial<Settings> = {}): Settings => ({ ...DEFAULT_SETTINGS, weights: W, ...patch });
 
+import { buildBadges } from '../src/shared/badges';
+
 test('generic knock-up rule rewards any airborne provider with Yasuo, not just Malphite', () => {
   for (const provider of ['Malphite', 'Alistar', 'Gragas', 'Ornn', 'Rell', 'JarvanIV', 'Janna']) {
     const hits = findSynergies([C(provider), C('Yasuo')]);
@@ -129,4 +131,16 @@ test('ARAM form raises comfort and is reported per teammate', () => {
   const me = withForm.teamForm.find(t => t.isLocal)!;
   assert.equal(me.top[0].championId, C('Syndra').id);
   assert.ok(me.hasHistory);
+});
+
+test('badges: one per bench slot with my delta, best highlighted, team rows get plan hints', () => {
+  const s = state(['Lucian', 'Yasuo', 'Lux', 'Jinx', 'Zed'], ['Malphite', 'Teemo']);
+  s.players[0].owned = s.bench.slice();
+  const a = analyze({ state: s, lookup, settings: settings() });
+  const b = buildBadges(s, a, DEFAULT_SETTINGS.badges);
+  const bench = b.filter(x => x.y === DEFAULT_SETTINGS.badges.benchFirst.y);
+  assert.equal(bench.length, 2);
+  assert.ok(bench.some(x => x.kind === 'best' && x.text.startsWith('+')));
+  const self = b.find(x => x.kind === 'self');
+  assert.ok(self && self.text.includes('Malphite'));
 });

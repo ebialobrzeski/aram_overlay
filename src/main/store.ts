@@ -18,7 +18,7 @@ export class Store {
     this.data = { settings: { ...DEFAULT_SETTINGS } };
     try {
       const raw = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<Persisted>;
-      this.data.settings = { ...DEFAULT_SETTINGS, ...(raw.settings ?? {}), weights: { ...DEFAULT_SETTINGS.weights, ...(raw.settings?.weights ?? {}) } };
+      this.data.settings = { ...DEFAULT_SETTINGS, ...(raw.settings ?? {}), weights: { ...DEFAULT_SETTINGS.weights, ...(raw.settings?.weights ?? {}) }, badges: { ...DEFAULT_SETTINGS.badges, ...(raw.settings?.badges ?? {}) } };
       this.data.bounds = raw.bounds;
     } catch { /* first run */ }
   }
@@ -30,7 +30,9 @@ export class Store {
     if (patch.profile && patch.profile !== this.data.settings.profile && PROFILES[patch.profile] && !patch.weights) {
       // switching profile resets the weights to that profile's defaults
       next.weights = { ...PROFILES[patch.profile].weights };
-    } else if (patch.weights) {
+    }
+    if (patch.badges) next.badges = { ...this.data.settings.badges, ...patch.badges };
+    if (patch.weights) {
       next.weights = { ...this.data.settings.weights, ...patch.weights };
       // editing sliders while on Auto means the user wants their own weights
       if (next.profile === 'auto') next.profile = 'custom';

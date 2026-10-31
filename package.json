@@ -69,6 +69,12 @@
       "owner": "ebialobrzeski",
       "repo": "aram_overlay",
       "releaseType": "release"
-    }
+    },
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ]
+  },
+  "dependencies": {
+    "koffi": "^3.3.6"
   }
 }

@@ -1,0 +1,26 @@
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; font: 12px "Segoe UI", system-ui, sans-serif; user-select: none; }
+#layer { position: absolute; inset: 0; }
+.badge {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+  padding: 1px 6px; border-radius: 999px; font-weight: 700; font-size: calc(12px * var(--scale, 1));
+  background: rgba(10, 13, 18, .88); color: #e6e9ef; border: 1px solid #2a3342; box-shadow: 0 1px 4px rgba(0,0,0,.6);
+  pointer-events: none;
+}
+.badge.pos { color: #4cd17a; border-color: #2f7a4a; }
+.badge.neg { color: #f06b6b; border-color: #7a2f2f; }
+.badge.zero { color: #8d96a5; }
+.badge.best { color: #0b1a10; background: #4cd17a; border-color: #4cd17a; box-shadow: 0 0 0 2px rgba(76,209,122,.45), 0 1px 4px rgba(0,0,0,.6); }
+.badge.hint { color: #5aa9ff; border-color: #2c5a8a; }
+.badge.self { color: #c8aa6e; border-color: #7a6a3a; }
+
+/* calibration */
+#calib { position: absolute; inset: 0; background: rgba(0, 0, 0, .25); }
+#calib .panel { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); max-width: 560px; background: rgba(10,13,18,.95); color: #e6e9ef; border: 1px solid #c8aa6e; border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+#calib .panel em { color: #c8aa6e; font-style: normal; font-weight: 700; }
+#calib .btns { display: flex; gap: 6px; }
+#calib button { background: #1e2530; color: #e6e9ef; border: 1px solid #2a3342; border-radius: 5px; padding: 3px 12px; cursor: pointer; font: inherit; }
+#calib button#save { border-color: #4cd17a; }
+.marker { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 2px solid #c8aa6e; background: rgba(200,170,110,.35); cursor: grab; touch-action: none; }
+.marker:active { cursor: grabbing; }
+.marker .lbl { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: rgba(10,13,18,.9); color: #c8aa6e; padding: 0 5px; border-radius: 4px; font-size: 11px; font-weight: 700; pointer-events: none; }
+.ghost { position: absolute; transform: translate(-50%, -50%); width: 10px; height: 10px; border-radius: 50%; border: 1px solid #c8aa6e; background: rgba(200,170,110,.25); pointer-events: none; }

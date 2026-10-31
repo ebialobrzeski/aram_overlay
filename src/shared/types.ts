@@ -83,8 +83,25 @@ export interface Weights {
   mastery: number;     // comfort picks of party members
 }
 
+export interface Anchor { x: number; y: number } // fraction of the client area
+export interface BadgeAnchors { benchFirst: Anchor; benchLast: Anchor; teamFirst: Anchor; teamLast: Anchor }
+export interface BadgeSettings extends BadgeAnchors {
+  enabled: boolean;
+  scale: number; // badge size multiplier
+}
+export interface Badge extends Anchor { text: string; kind: 'pos' | 'neg' | 'zero' | 'best' | 'hint' | 'self'; title?: string }
+export interface BadgeModel {
+  badges: Badge[];
+  calibrating: boolean;
+  anchors: BadgeAnchors;
+  slots: number;
+  rows: number;
+  scale: number;
+}
+
 export interface Settings {
   profile: string;
+  badges: BadgeSettings;
   weights: Weights;
   includeNonPartyTrades: boolean;
   assumePartyOwnsAll: boolean;
@@ -176,4 +193,5 @@ export interface UpdatePayload {
   demo: boolean;
   /** true while showing the final champion select of a game that is already running (actions disabled) */
   frozen: boolean;
+  calibrating: boolean;
 }

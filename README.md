@@ -12,6 +12,18 @@ League client, scores the team composition, and tells you:
 - **Comfort picks** – mastery points of you and your party members are read from the client, so plans prefer
   champions each person is strong on.
 
+## Badges on the League client
+
+Besides its own window, the overlay draws small score badges directly over the League client during champion
+select: one per bench champion (your delta, the best one highlighted) and one per team row (what the best plan asks
+of that player, or your own best move). This is a transparent, click-through window that follows the client
+window, so nothing is injected into the client.
+
+The badge positions are fractions of the client area. The defaults are guesses, so during a champion select open ⚙
+→ **Calibrate positions**, drag *Bench 1* / *Bench 10* onto the first and tenth bench slots and *Row 1* / *Row 5*
+onto the top and bottom teammate portraits, then Save. It is remembered, and it scales with the client window size.
+Toggle the badges or change their size in ⚙.
+
 ## Run
 
 ```bash

@@ -47,7 +47,7 @@ function render(p: UpdatePayload) {
   const { state, analysis, settings, icons } = p;
   frozen = p.frozen;
   const status = $('#status');
-  status.textContent = p.lcuStatus;
+  status.textContent = p.calibrating ? 'Calibrating badges: drag the markers on the client, then Save' : p.lcuStatus;
   status.classList.toggle('ok', p.lcuStatus.startsWith('Connected'));
 
   renderInfo(state, settings, p.demo, analysis);
@@ -221,6 +221,9 @@ function buildSettings() {
     if (weightTimer) clearTimeout(weightTimer);
     weightTimer = setTimeout(() => { void api.setSettings({ weights: { ...pendingWeights } as Weights }); }, 250);
   });
+  ($('#opt-badges') as HTMLInputElement).onchange = e => void api.setSettings({ badges: { ...last!.settings.badges, enabled: (e.target as HTMLInputElement).checked } });
+  ($('#opt-badge-scale') as HTMLInputElement).oninput = e => void api.setSettings({ badges: { ...last!.settings.badges, scale: Number((e.target as HTMLInputElement).value) } });
+  $('#btn-calibrate').onclick = () => void api.calibrateStart();
   ($('#opt-nonparty') as HTMLInputElement).onchange = e => void api.setSettings({ includeNonPartyTrades: (e.target as HTMLInputElement).checked });
   ($('#opt-assume-owned') as HTMLInputElement).onchange = e => void api.setSettings({ assumePartyOwnsAll: (e.target as HTMLInputElement).checked });
   ($('#opt-comfort') as HTMLTextAreaElement).onchange = e => void api.setSettings({ comfortOverrides: (e.target as HTMLTextAreaElement).value });
@@ -239,6 +242,8 @@ function syncSettings(s: Settings) {
     const input = $<HTMLInputElement>(`[data-weight="${k}"]`);
     if (input !== active) { input.value = String(s.weights[k]); $(`[data-wv="${k}"]`).textContent = String(s.weights[k]); }
   }
+  ($('#opt-badges') as HTMLInputElement).checked = s.badges.enabled;
+  const bs = $('#opt-badge-scale') as HTMLInputElement; if (bs !== active) bs.value = String(s.badges.scale);
   ($('#opt-nonparty') as HTMLInputElement).checked = s.includeNonPartyTrades;
   ($('#opt-assume-owned') as HTMLInputElement).checked = s.assumePartyOwnsAll;
   const ta = $('#opt-comfort') as HTMLTextAreaElement; if (ta !== active) ta.value = s.comfortOverrides;
