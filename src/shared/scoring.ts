@@ -49,7 +49,7 @@ export const PROFILES: Record<string, Profile> = {
 export const DEFAULT_SETTINGS: Settings = {
   profile: 'auto',
   badges: {
-    enabled: true, scale: 1, auto: true, calibratedBy: 'none',
+    enabled: true, scale: 1, auto: true, calibratedBy: 'none', benchRef: 10, benchAlign: 'left',
     // rough guesses for the ARAM champion select layout; "Calibrate" in the settings matches them to the client
     benchFirst: { x: 0.335, y: 0.905 }, benchLast: { x: 0.665, y: 0.905 },
     teamFirst: { x: 0.115, y: 0.215 }, teamLast: { x: 0.115, y: 0.655 },

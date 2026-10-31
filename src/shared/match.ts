@@ -3,7 +3,7 @@
  * in a grayscale screenshot of the League client, then turn the found positions into bench / team anchors.
  * No Node or Electron dependencies so it can run in a worker thread and in unit tests.
  */
-import type { Anchor, BadgeAnchors } from './types';
+import type { Anchor } from './types';
 
 export interface Gray { width: number; height: number; data: Float32Array }
 export interface Template { key: string; size: number; data: Float32Array } // square, size*size
@@ -42,7 +42,7 @@ export function crop(src: Gray, r: Region): Gray {
   return { width: Math.max(0, w), height: Math.max(0, h), data };
 }
 
-interface MaskedTemplate { key: string; size: number; idx: Int32Array; dx: Int32Array; dy: Int32Array; vals: Float32Array; mean: number; std: number }
+interface MaskedTemplate { key: string; size: number; dx: Int32Array; dy: Int32Array; vals: Float32Array }
 
 /** Keep only the inscribed circle of the icon (the client shows icons in round frames), normalised. */
 function prepare(t: Template): MaskedTemplate | null {
@@ -57,7 +57,7 @@ function prepare(t: Template): MaskedTemplate | null {
   const mean = vals.reduce((a, b) => a + b, 0) / n;
   const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
   if (std < 1e-3) return null;
-  return { key: t.key, size: t.size, idx: new Int32Array(n), dx: Int32Array.from(dx), dy: Int32Array.from(dy), vals: Float32Array.from(vals.map(v => (v - mean) / std)), mean, std };
+  return { key: t.key, size: t.size, dx: Int32Array.from(dx), dy: Int32Array.from(dy), vals: Float32Array.from(vals.map(v => (v - mean) / std)) };
 }
 
 /** Normalised cross-correlation of one masked template at (x, y) top-left. */
@@ -75,100 +75,139 @@ function ncc(img: Gray, t: MaskedTemplate, x: number, y: number): number {
 }
 
 /**
- * Best position of every template inside `region` of `img` (coarse stride, then refined). Templates may be
- * provided at several sizes with the same key; the best size wins.
+ * Up to `k` well-separated candidate positions for every template key inside `region` (all sizes of a key
+ * compete together). Coarse grid first, then full-resolution refinement of the best coarse spots.
  */
-export function matchTemplates(img: Gray, templates: Template[], region: Region): Match[] {
+export function matchCandidates(img: Gray, templates: Template[], region: Region, k = 3): Match[] {
   const sub = crop(img, region);
-  const best = new Map<string, Match>();
+  const perKey = new Map<string, Match[]>();
   for (const raw of templates) {
     const t = prepare(raw);
     if (!t || sub.width < t.size || sub.height < t.size) continue;
-    const stride = Math.max(1, Math.round(t.size / 6));
-    // coarse grid: keep the best few candidates, then refine each one at full resolution
+    const stride = Math.max(1, Math.round(t.size / 5));
     const coarse: { x: number; y: number; s: number }[] = [];
     for (let y = 0; y + t.size <= sub.height; y += stride) for (let x = 0; x + t.size <= sub.width; x += stride) {
       const s = ncc(sub, t, x, y);
-      if (coarse.length < 5 || s > coarse[coarse.length - 1].s) {
-        coarse.push({ x, y, s }); coarse.sort((p, q) => q.s - p.s); if (coarse.length > 5) coarse.pop();
+      if (coarse.length < 8 || s > coarse[coarse.length - 1].s) {
+        coarse.push({ x, y, s }); coarse.sort((p, q) => q.s - p.s); if (coarse.length > 8) coarse.pop();
       }
     }
-    let bx = 0, by = 0, bs = -1;
-    for (const c of coarse)
+    const refined: Match[] = [];
+    for (const c of coarse) {
+      let bx = c.x, by = c.y, bs = c.s;
       for (let y = Math.max(0, c.y - stride); y <= Math.min(sub.height - t.size, c.y + stride); y++)
         for (let x = Math.max(0, c.x - stride); x <= Math.min(sub.width - t.size, c.x + stride); x++) {
           const s = ncc(sub, t, x, y);
           if (s > bs) { bs = s; bx = x; by = y; }
         }
-    const m: Match = { key: t.key, x: region.x + bx + t.size / 2, y: region.y + by + t.size / 2, size: t.size, score: bs };
-    const prev = best.get(t.key);
-    if (!prev || m.score > prev.score) best.set(t.key, m);
+      refined.push({ key: t.key, x: region.x + bx + t.size / 2, y: region.y + by + t.size / 2, size: t.size, score: bs });
+    }
+    const list = perKey.get(t.key) ?? [];
+    list.push(...refined);
+    perKey.set(t.key, list);
   }
-  return [...best.values()];
+  // non-maximum suppression per key: keep the best, drop anything closer than half an icon
+  const out: Match[] = [];
+  for (const list of perKey.values()) {
+    list.sort((a, b) => b.score - a.score);
+    const kept: Match[] = [];
+    for (const m of list) {
+      if (kept.length >= k) break;
+      if (kept.every(o => Math.hypot(o.x - m.x, o.y - m.y) > Math.max(o.size, m.size) * 0.6)) kept.push(m);
+    }
+    out.push(...kept);
+  }
+  return out;
 }
 
-export interface AnchorFit { anchors: BadgeAnchors; benchMatches: number; teamMatches: number; benchScore: number; teamScore: number; notes: string[] }
+/** Best single position per key (convenience for tests and simple uses). */
+export function matchTemplates(img: Gray, templates: Template[], region: Region): Match[] {
+  return matchCandidates(img, templates, region, 1);
+}
 
-function fitLine(points: { i: number; v: number }[]): { a: number; b: number } {
+export interface LineFit { a: number; b: number; resid: number }
+
+function fitLine(points: { i: number; v: number }[]): LineFit {
   const n = points.length;
-  if (n === 1) return { a: points[0].v, b: 0 };
+  if (n === 1) return { a: points[0].v, b: 0, resid: 0 };
   const mi = points.reduce((s, p) => s + p.i, 0) / n, mv = points.reduce((s, p) => s + p.v, 0) / n;
   let num = 0, den = 0;
   for (const p of points) { num += (p.i - mi) * (p.v - mv); den += (p.i - mi) ** 2; }
   const b = den ? num / den : 0;
-  return { a: mv - b * mi, b };
+  const a = mv - b * mi;
+  const resid = points.reduce((s, p) => s + Math.abs(a + b * p.i - p.v), 0) / n;
+  return { a, b, resid };
 }
 
+/** Largest group of matches (distinct keys) whose `coord` values agree within `tol`. */
+function bestCluster(ms: Match[], coord: (m: Match) => number, tol: number): Match[] {
+  let best: Match[] = [];
+  const scoreOf = (g: Match[]) => g.length + g.reduce((s, m) => s + m.score, 0) / 10;
+  for (const seed of ms) {
+    const byKey = new Map<string, Match>();
+    for (const m of ms) {
+      if (Math.abs(coord(m) - coord(seed)) > tol) continue;
+      const p = byKey.get(m.key);
+      if (!p || m.score > p.score) byKey.set(m.key, m);
+    }
+    const group = [...byKey.values()];
+    if (scoreOf(group) > scoreOf(best)) best = group;
+  }
+  return best;
+}
+
+export interface BenchFit { first: Anchor; last: Anchor; count: number; align: 'center' | 'left'; matches: number; score: number }
+export interface TeamFit { first: Anchor; last: Anchor; matches: number; score: number }
+export interface AnchorFit { bench: BenchFit | null; team: TeamFit | null; notes: string[] }
+
 /**
- * Turn icon matches into anchors (fractions of the image). `bench` gives the slot index of each bench key,
- * `team` the row index of each team key. Matches below `minScore` are ignored.
+ * Turn icon candidates into anchors (fractions of the image). The bench is a horizontal evenly spaced row
+ * (left-aligned or centred, decided from where the row sits); the team is a vertical column in cell order.
+ * `bench` maps key -> slot index among the `benchCount` champions currently on the bench, `team` maps
+ * key -> row index. Matches below `minScore` are ignored.
  */
 export function deriveAnchors(
-  img: { width: number; height: number }, matches: Match[],
-  bench: Map<string, number>, team: Map<string, number>, slots: number, rows: number,
-  prev: BadgeAnchors, minScore = 0.5,
+  img: { width: number; height: number }, candidates: Match[],
+  bench: Map<string, number>, benchCount: number, team: Map<string, number>, rows: number, minScore = 0.45,
 ): AnchorFit {
   const notes: string[] = [];
-  const good = matches.filter(m => m.score >= minScore);
+  const good = candidates.filter(m => m.score >= minScore);
   const fx = (v: number): number => v / img.width, fy = (v: number): number => v / img.height;
-  const anchors: BadgeAnchors = JSON.parse(JSON.stringify(prev));
+  const clamp = (a: Anchor): Anchor => ({ x: Math.min(1, Math.max(0, a.x)), y: Math.min(1, Math.max(0, a.y)) });
+  let benchFit: BenchFit | null = null, teamFit: TeamFit | null = null;
 
-  // bench: x grows with the slot index; if the order does not match, fall back to left-to-right rank
-  let b = good.filter(m => bench.has(m.key));
-  let benchScore = 0;
-  if (b.length >= 2) {
-    const ys = b.map(m => m.y).sort((p, q) => p - q);
-    const medianY = ys[Math.floor(ys.length / 2)];
-    b = b.filter(m => Math.abs(m.y - medianY) < img.height * 0.03);
-  }
+  // ---- bench: the row of icons on one horizontal line
+  const b = bestCluster(good.filter(m => bench.has(m.key)), m => m.y, img.height * 0.025);
   if (b.length >= 2) {
     const byIndex = b.map(m => ({ i: bench.get(m.key)!, v: m.x }));
     const byRank = [...b].sort((p, q) => p.x - q.x).map((m, i) => ({ i, v: m.x }));
-    const resid = (pts: { i: number; v: number }[]) => { const f = fitLine(pts); return pts.reduce((s, p) => s + Math.abs(f.a + f.b * p.i - p.v), 0) / pts.length; };
-    const pts = resid(byIndex) <= resid(byRank) * 1.5 ? byIndex : (notes.push('bench order differs from the list; used left-to-right rank'), byRank);
-    const fxl = fitLine(pts), fyl = fitLine(b.map(m => ({ i: bench.get(m.key)!, v: m.y })));
-    if (fxl.b > img.width * 0.02) {
-      anchors.benchFirst = { x: fx(fxl.a), y: fy(fyl.a) };
-      anchors.benchLast = { x: fx(fxl.a + fxl.b * (slots - 1)), y: fy(fyl.a + fyl.b * (slots - 1)) };
-      benchScore = b.reduce((s, m) => s + m.score, 0) / b.length;
-    } else notes.push('bench matches too close together; ignored');
-  } else notes.push(`only ${b.length} bench icon(s) found`);
+    let fit = fitLine(byIndex);
+    const rank = fitLine(byRank);
+    if (rank.resid < fit.resid * 0.7) { fit = rank; notes.push('bench order differs from the list; used left-to-right rank'); }
+    const smallest = Math.min(...b.map(m => m.size));
+    const spacing = fit.b;
+    if (spacing > smallest * 0.8 && fit.resid < spacing * 0.2) {
+      const fyl = fitLine(b.map(m => ({ i: bench.get(m.key)!, v: m.y })));
+      const first = clamp({ x: fx(fit.a), y: fy(fyl.a) });
+      const last = clamp({ x: fx(fit.a + spacing * (benchCount - 1)), y: fy(fyl.a + fyl.b * (benchCount - 1)) });
+      const centerX = (first.x + last.x) / 2;
+      const align: 'center' | 'left' = Math.abs(centerX - 0.5) < 0.06 ? 'center' : 'left';
+      benchFit = { first, last, count: benchCount, align, matches: b.length, score: b.reduce((s, m) => s + m.score, 0) / b.length };
+    } else notes.push(`bench row inconsistent (spacing ${spacing.toFixed(1)}px, residual ${fit.resid.toFixed(1)}px)`);
+  } else notes.push(`only ${b.length} bench icon(s) on a common line`);
 
-  // team rows: y grows with the row index (cell order)
-  const t = good.filter(m => team.has(m.key));
-  let teamScore = 0;
+  // ---- team: a vertical column in cell order
+  const t = bestCluster(good.filter(m => team.has(m.key)), m => m.x, img.width * 0.03);
   if (t.length >= 2) {
     const fyl = fitLine(t.map(m => ({ i: team.get(m.key)!, v: m.y })));
     const fxl = fitLine(t.map(m => ({ i: team.get(m.key)!, v: m.x })));
-    if (fyl.b > img.height * 0.03) {
-      anchors.teamFirst = { x: fx(fxl.a), y: fy(fyl.a) };
-      anchors.teamLast = { x: fx(fxl.a + fxl.b * (rows - 1)), y: fy(fyl.a + fyl.b * (rows - 1)) };
-      teamScore = t.reduce((s, m) => s + m.score, 0) / t.length;
-    } else notes.push('team matches not stacked vertically; ignored');
-  } else notes.push(`only ${t.length} team icon(s) found`);
+    if (fyl.b > img.height * 0.03 && fyl.resid < fyl.b * 0.2) {
+      teamFit = {
+        first: clamp({ x: fx(fxl.a), y: fy(fyl.a) }), last: clamp({ x: fx(fxl.a + fxl.b * (rows - 1)), y: fy(fyl.a + fyl.b * (rows - 1)) }),
+        matches: t.length, score: t.reduce((s, m) => s + m.score, 0) / t.length,
+      };
+    } else notes.push('team column inconsistent');
+  } else notes.push(`only ${t.length} team icon(s) in a common column`);
 
-  const clamp = (a: Anchor): Anchor => ({ x: Math.min(1, Math.max(0, a.x)), y: Math.min(1, Math.max(0, a.y)) });
-  anchors.benchFirst = clamp(anchors.benchFirst); anchors.benchLast = clamp(anchors.benchLast);
-  anchors.teamFirst = clamp(anchors.teamFirst); anchors.teamLast = clamp(anchors.teamLast);
-  return { anchors, benchMatches: benchScore ? b.length : 0, teamMatches: teamScore ? t.length : 0, benchScore, teamScore, notes };
+  return { bench: benchFit, team: teamFit, notes };
 }

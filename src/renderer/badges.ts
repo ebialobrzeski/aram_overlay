@@ -23,7 +23,7 @@ function renderBadges(m: BadgeModel) {
 }
 
 const MARKERS: { key: keyof BadgeAnchors; label: string }[] = [
-  { key: 'benchFirst', label: 'Bench 1' }, { key: 'benchLast', label: 'Bench 10' },
+  { key: 'benchFirst', label: 'Bench 1' }, { key: 'benchLast', label: 'Bench last' },
   { key: 'teamFirst', label: 'Row 1' }, { key: 'teamLast', label: 'Row 5' },
 ];
 
@@ -31,8 +31,8 @@ function renderCalibration(m: BadgeModel) {
   if (!anchors) anchors = JSON.parse(JSON.stringify(m.anchors));
   const a = anchors!;
   const ghosts: string[] = [];
-  for (let i = 1; i < m.slots - 1; i++) {
-    const t = i / (m.slots - 1);
+  for (let i = 1; i < m.benchCount - 1; i++) {
+    const t = i / (m.benchCount - 1);
     const p = px({ x: a.benchFirst.x + (a.benchLast.x - a.benchFirst.x) * t, y: a.benchFirst.y + (a.benchLast.y - a.benchFirst.y) * t });
     ghosts.push(`<div class="ghost" style="left:${p.left};top:${p.top}"></div>`);
   }
@@ -43,7 +43,8 @@ function renderCalibration(m: BadgeModel) {
   }
   const markers = MARKERS.map(mk => {
     const p = px(a[mk.key]);
-    return `<div class="marker" data-key="${mk.key}" style="left:${p.left};top:${p.top}"><span class="lbl">${mk.label}</span></div>`;
+    const label = mk.key === 'benchLast' ? `Bench ${m.benchCount}` : mk.label;
+    return `<div class="marker" data-key="${mk.key}" style="left:${p.left};top:${p.top}"><span class="lbl">${label}</span></div>`;
   }).join('');
   layer.innerHTML = ghosts.join('') + markers;
 }

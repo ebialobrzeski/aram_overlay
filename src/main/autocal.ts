@@ -1,23 +1,25 @@
-import { desktopCapturer, nativeImage } from 'electron';
+import { app, desktopCapturer, nativeImage } from 'electron';
 import { Worker } from 'node:worker_threads';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { BadgeAnchors, TeamState } from '../shared/types';
+import type { TeamState } from '../shared/types';
 import { deriveAnchors, resizeGray, toGray, type AnchorFit, type Gray, type Match, type Template } from '../shared/match';
-import { BENCH_SLOTS, TEAM_ROWS } from '../shared/badges';
+import { TEAM_ROWS } from '../shared/badges';
 import { findLeagueClient, windowRectOf } from './win32';
 import type { Lcu } from './lcu';
 import { log } from './log';
 
-const WORK_HEIGHT = 400;                 // screenshot is downscaled to this height before matching
-const ICON_SIZES = [22, 26, 30, 34, 38, 44, 50]; // candidate icon sizes at the working resolution
+const WORK_HEIGHT = 450;                               // screenshot is downscaled to this height before matching
+const ICON_SIZES = [14, 17, 20, 24, 28, 33, 38, 44, 52]; // candidate icon sizes at the working resolution
 
 export interface AutoCalResult { fit: AnchorFit; ms: number; capture: { width: number; height: number } }
 
 /**
  * Screenshot the League client, find the bench and team champion icons in it and derive the badge anchors.
  * Returns null when the client could not be captured. Icon templates come from the client itself.
+ * In debug mode the capture and the matches are written next to the debug log for inspection.
  */
-export async function autoCalibrate(lcu: Lcu, state: TeamState, prev: BadgeAnchors, iconCache: Map<number, Gray>): Promise<AutoCalResult | null> {
+export async function autoCalibrate(lcu: Lcu, state: TeamState, iconCache: Map<number, Gray>, debug: boolean): Promise<AutoCalResult | null> {
   const client = findLeagueClient();
   if (!client || client.minimized) { log.debug('auto-calibration: client not visible'); return null; }
   const winRect = windowRectOf(client.hwnd);
@@ -50,20 +52,29 @@ export async function autoCalibrate(lcu: Lcu, state: TeamState, prev: BadgeAncho
   }
   if (!templates.length) return null;
 
+  // generous search areas: the bench row somewhere in the lower half, the team column somewhere on the left half
   const regions = {
-    bench: { x: 0, y: Math.round(img.height * 0.62), width: img.width, height: img.height - Math.round(img.height * 0.62) },
-    team: { x: 0, y: Math.round(img.height * 0.08), width: Math.round(img.width * 0.42), height: Math.round(img.height * 0.84) },
+    bench: { x: 0, y: Math.round(img.height * 0.45), width: img.width, height: img.height - Math.round(img.height * 0.45) },
+    team: { x: 0, y: Math.round(img.height * 0.05), width: Math.round(img.width * 0.5), height: Math.round(img.height * 0.9) },
   };
 
   const started = Date.now();
   const matches = await runWorker({ img, templates, regions, benchKeys: [...benchKeys.keys()], teamKeys: [...teamKeys.keys()] });
 
-  // matches are in working pixels of the capture; convert to client-rect fractions
+  // matches are in working pixels of the capture; convert to working pixels of the client rect
   const toClient = (m: Match): Match => ({ ...m, x: (m.x / f - clientInCap.x) / clientInCap.width * img.width, y: (m.y / f - clientInCap.y) / clientInCap.height * img.height });
-  const fit = deriveAnchors({ width: img.width, height: img.height }, matches.map(toClient), benchKeys, teamKeys, BENCH_SLOTS, TEAM_ROWS, prev);
+  const fit = deriveAnchors({ width: img.width, height: img.height }, matches.map(toClient), benchKeys, state.bench.length, teamKeys, TEAM_ROWS);
   const ms = Date.now() - started;
-  log.info(`auto-calibration: bench ${fit.benchMatches} icons (score ${fit.benchScore.toFixed(2)}), team ${fit.teamMatches} icons (score ${fit.teamScore.toFixed(2)}) in ${ms}ms${fit.notes.length ? '; ' + fit.notes.join('; ') : ''}`);
+  log.info(`auto-calibration: bench ${fit.bench ? `${fit.bench.matches} icons, score ${fit.bench.score.toFixed(2)}, ${fit.bench.align}` : 'not found'}; team ${fit.team ? `${fit.team.matches} icons, score ${fit.team.score.toFixed(2)}` : 'not found'}; ${ms}ms${fit.notes.length ? '; ' + fit.notes.join('; ') : ''}`);
   log.debug('auto-calibration matches', JSON.stringify(matches.map(m => ({ k: m.key, x: Math.round(m.x), y: Math.round(m.y), s: m.size, score: Math.round(m.score * 100) / 100 }))));
+
+  if (debug) {
+    try {
+      const dir = app.getPath('userData');
+      writeFileSync(path.join(dir, 'debug-capture.png'), thumb.toPNG());
+      writeFileSync(path.join(dir, 'debug-capture.json'), JSON.stringify({ at: new Date().toISOString(), capture: size, winRect, clientRect: client.rect, work: { width: img.width, height: img.height, f }, bench: state.bench, team: [...teamKeys.entries()], matches, fit }, null, 2));
+    } catch (e) { log.warn('could not write the debug capture', e); }
+  }
   return { fit, ms, capture: size };
 }
 

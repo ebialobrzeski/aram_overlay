@@ -90,6 +90,8 @@ export interface BadgeSettings extends BadgeAnchors {
   scale: number; // badge size multiplier
   auto: boolean; // find the icons in a screenshot of the client at the start of every champion select
   calibratedBy: 'none' | 'auto' | 'manual';
+  benchRef: number;              // benchFirst/benchLast describe a bench of this many champions
+  benchAlign: 'left' | 'center'; // how the bench row grows with the number of champions
 }
 export interface Badge extends Anchor { text: string; kind: 'pos' | 'neg' | 'zero' | 'best' | 'hint' | 'self'; title?: string }
 export interface BadgeModel {
@@ -99,6 +101,7 @@ export interface BadgeModel {
   slots: number;
   rows: number;
   scale: number;
+  benchCount: number; // champions on the bench right now (calibration markers refer to them)
 }
 
 export interface Settings {

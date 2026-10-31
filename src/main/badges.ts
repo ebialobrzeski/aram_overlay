@@ -1,7 +1,7 @@
 import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import type { Analysis, BadgeModel, BadgeSettings, TeamState } from '../shared/types';
-import { buildBadges, BENCH_SLOTS, TEAM_ROWS } from '../shared/badges';
+import { buildBadges, benchSlot, BENCH_SLOTS, TEAM_ROWS } from '../shared/badges';
 import { findLeagueClient, hwndOf, available as win32Available } from './win32';
 import { log } from './log';
 
@@ -57,8 +57,8 @@ export class BadgeWindow {
     const model: BadgeModel = {
       badges: this.calibrating ? [] : buildBadges(state, analysis, settings),
       calibrating: this.calibrating,
-      anchors: { benchFirst: settings.benchFirst, benchLast: settings.benchLast, teamFirst: settings.teamFirst, teamLast: settings.teamLast },
-      slots: BENCH_SLOTS, rows: TEAM_ROWS, scale: settings.scale,
+      anchors: { benchFirst: benchSlot(settings, 0, Math.max(2, Math.min(BENCH_SLOTS, state.bench.length || BENCH_SLOTS))), benchLast: benchSlot(settings, Math.max(2, Math.min(BENCH_SLOTS, state.bench.length || BENCH_SLOTS)) - 1, Math.max(2, Math.min(BENCH_SLOTS, state.bench.length || BENCH_SLOTS))), teamFirst: settings.teamFirst, teamLast: settings.teamLast },
+      slots: BENCH_SLOTS, rows: TEAM_ROWS, scale: settings.scale, benchCount: Math.max(2, Math.min(BENCH_SLOTS, state.bench.length || BENCH_SLOTS)),
     };
     w.webContents.send('badges', model);
   }

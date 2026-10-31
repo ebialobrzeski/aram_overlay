@@ -42,6 +42,8 @@ const iconGrayCache = new Map<number, Gray>();
 let autoCalKey = '';      // champion select for which auto-calibration already ran
 let autoCalRunning = false;
 let autoCalAttempts = 0;
+let autoCalBenchSeen = 0;  // bench size at the last successful run (more icons = better fit, so re-run)
+let autoCalLastAt = 0;
 
 /** Screenshot-based calibration: once per champion select, as soon as a few icons are on the table. */
 async function maybeAutoCalibrate(state: TeamState, force = false): Promise<string> {
@@ -50,24 +52,26 @@ async function maybeAutoCalibrate(state: TeamState, force = false): Promise<stri
   if (state.phase !== 'ChampSelect' || !state.players.length) return 'no champion select';
   const picked = state.players.filter(p => p.championId > 0).length;
   if (state.bench.length + picked < 3) return 'not enough champions on screen yet';
-  const key = `${state.players.map(p => p.cellId).join(',')}:${state.bench.slice(0, 3).join(',')}`;
-  if (!force && (!store.settings.badges.auto || key === autoCalKey || autoCalAttempts >= 4 || badges?.calibrating)) return 'skipped';
+  const key = state.players.map(p => `${p.cellId}:${p.puuid ?? ''}`).join(',');
+  const done = key === autoCalKey && state.bench.length <= autoCalBenchSeen;
+  if (!force && (!store.settings.badges.auto || done || autoCalAttempts >= 4 || badges?.calibrating || Date.now() - autoCalLastAt < 4000)) return 'skipped';
+  autoCalLastAt = Date.now();
   autoCalRunning = true;
   try {
-    const res = await autoCalibrate(lcu, state, store.settings.badges, iconGrayCache);
-    autoCalAttempts++;
-    if (!res) return 'client could not be captured';
+    const res = await autoCalibrate(lcu, state, iconGrayCache, debug);
+    if (!res) { autoCalAttempts++; return 'client could not be captured'; }
     const { fit } = res;
-    const okBench = fit.benchMatches >= 2 && fit.benchScore >= 0.55;
-    const okTeam = fit.teamMatches >= 2 && fit.teamScore >= 0.55;
-    if (!okBench && !okTeam) return `icons not found (${fit.notes.join('; ')})`;
+    const okBench = !!fit.bench && fit.bench.matches >= 2 && fit.bench.score >= 0.5;
+    const okTeam = !!fit.team && fit.team.matches >= 2 && fit.team.score >= 0.5;
+    if (!okBench && !okTeam) { autoCalAttempts++; return `icons not found (${fit.notes.join('; ')})`; }
     const next = { ...store.settings.badges, calibratedBy: 'auto' as const };
-    if (okBench) { next.benchFirst = fit.anchors.benchFirst; next.benchLast = fit.anchors.benchLast; }
-    if (okTeam) { next.teamFirst = fit.anchors.teamFirst; next.teamLast = fit.anchors.teamLast; }
+    if (okBench && fit.bench) { next.benchFirst = fit.bench.first; next.benchLast = fit.bench.last; next.benchRef = fit.bench.count; next.benchAlign = fit.bench.align; }
+    if (okTeam && fit.team) { next.teamFirst = fit.team.first; next.teamLast = fit.team.last; }
     store.updateSettings({ badges: next });
     settingsVersion++;
     autoCalKey = key; autoCalAttempts = 0;
-    const msg = `auto-calibrated: bench ${okBench ? `${fit.benchMatches} icons` : 'kept'}, team ${okTeam ? `${fit.teamMatches} icons` : 'kept'} (${res.ms}ms)`;
+    if (okBench) autoCalBenchSeen = state.bench.length; else autoCalBenchSeen = Math.max(autoCalBenchSeen, 0);
+    const msg = `auto-calibrated: bench ${okBench && fit.bench ? `${fit.bench.matches} icons (${fit.bench.align})` : 'kept'}, team ${okTeam && fit.team ? `${fit.team.matches} icons` : 'kept'} (${res.ms}ms)`;
     log.info(msg);
     return msg;
   } catch (e) {
@@ -181,7 +185,7 @@ async function tick() {
     }
     if (!frozen && state.phase === 'ChampSelect' && state.players.length) { frozenState = state; frozenAnalysis = lastAnalysis; }
     lastState = state; lastFrozenFlag = frozen;
-    if (state.phase !== 'ChampSelect') { autoCalKey = ''; autoCalAttempts = 0; }
+    if (state.phase !== 'ChampSelect') { autoCalKey = ''; autoCalAttempts = 0; autoCalBenchSeen = 0; }
     else if (!frozen) void maybeAutoCalibrate(state);
 
     const icons: Record<number, string> = {};
@@ -262,7 +266,10 @@ app.whenReady().then(() => {
   ipcMain.handle('demo:shuffle', () => { demoState.shuffle(); lastKey = ''; void tick(); });
   ipcMain.handle('badges:calibrate:start', () => { badges?.startCalibration(); void tick(); });
   ipcMain.handle('badges:calibrate:save', (_e, anchors: BadgeAnchors) => {
-    store.updateSettings({ badges: { ...store.settings.badges, ...anchors, calibratedBy: 'manual' } });
+    // the markers were placed on the bench as it is right now: remember how many champions that was
+    const count = Math.max(2, Math.min(10, lastState.bench.length || 10));
+    const centerX = (anchors.benchFirst.x + anchors.benchLast.x) / 2;
+    store.updateSettings({ badges: { ...store.settings.badges, ...anchors, calibratedBy: 'manual', benchRef: count, benchAlign: Math.abs(centerX - 0.5) < 0.06 ? 'center' : 'left' } });
     log.info('badge anchors saved', safeJson(anchors));
     badges?.endCalibration(); settingsVersion++; void tick();
   });
