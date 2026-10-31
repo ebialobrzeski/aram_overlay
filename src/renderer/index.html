@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' lcu: https://ddragon.leagueoflegends.com data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>ARAM Comp Overlay</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="titlebar">
+    <span class="brand">ARAM Comp</span>
+    <span id="status" class="status">…</span>
+    <span class="controls">
+      <button id="btn-settings" title="Settings">⚙</button>
+      <button id="btn-min" title="Minimize">–</button>
+      <button id="btn-close" title="Close">×</button>
+    </span>
+  </header>
+
+  <main id="app">
+    <section id="info" class="card"></section>
+    <section id="team" class="card"></section>
+    <section id="form" class="card"></section>
+    <section id="picks" class="card"></section>
+    <section id="plans" class="card"></section>
+    <section id="settings" class="card" hidden>
+      <h2>Settings</h2>
+      <div class="row">
+        <label>Profile</label>
+        <div id="profiles" class="chips"></div>
+      </div>
+      <p id="profile-desc" class="muted"></p>
+      <details open>
+        <summary>Weights</summary>
+        <div id="weights"></div>
+      </details>
+      <div class="row toggle"><label><input type="checkbox" id="opt-nonparty" /> Suggest trades with non-party teammates (they must accept)</label></div>
+      <div class="row toggle"><label><input type="checkbox" id="opt-assume-owned" /> Assume party members own every bench champion</label></div>
+      <div class="row"><label>Comfort picks of friends (one per line: <code>Name: Ahri, Lux</code>) — used when their mastery cannot be read</label>
+        <textarea id="opt-comfort" rows="3" spellcheck="false"></textarea></div>
+      <div class="row"><label>Plans to show <input type="number" id="opt-plans" min="1" max="10" /></label>
+        <label>Opacity <input type="range" id="opt-opacity" min="0.4" max="1" step="0.02" /></label></div>
+      <div class="row chips">
+        <button id="btn-demo">Toggle demo mode</button>
+        <button id="btn-shuffle">Shuffle demo</button>
+      </div>
+    </section>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
