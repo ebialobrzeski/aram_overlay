@@ -1,7 +1,7 @@
 {
   "name": "aram-overlay",
   "version": "0.1.0",
-  "description": "Always-on-top ARAM champion-select overlay that ranks available champions and team plans for the best composition.",
+  "description": "Always-on-top ARAM champion-select overlay: ranks picks, plans party swaps, detects ult combos.",
   "main": "dist/main.js",
   "private": true,
   "scripts": {
@@ -9,12 +9,60 @@
     "start": "node scripts/build.mjs && electron .",
     "demo": "node scripts/build.mjs && electron . --demo",
     "debug": "node scripts/build.mjs && electron . --aram-debug",
-    "test": "node scripts/build.mjs --tests && node --test dist/test/"
+    "test": "node scripts/build.mjs --tests && node --test dist/test/",
+    "package": "node scripts/build.mjs && electron-builder --win --publish never"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
     "esbuild": "^0.24.0",
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.6.0"
+  },
+  "author": "ebialobrzeski",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ebialobrzeski/aram_overlay.git"
+  },
+  "build": {
+    "appId": "com.ebialobrzeski.aramoverlay",
+    "productName": "ARAM Comp Overlay",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "ARAM Comp Overlay"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
+    }
   }
 }

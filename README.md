@@ -105,3 +105,24 @@ Writes two files to `%APPDATA%\aram-overlay\` (the exact path is printed on star
   is installed somewhere unusual.
 - **Friends show no mastery** – the client does not always expose other players' mastery; use the comfort pick
   overrides in ⚙.
+
+## Download
+
+Prebuilt Windows packages are on the [Releases page](https://github.com/ebialobrzeski/aram_overlay/releases):
+
+- `ARAM Comp Overlay-<version>-win-x64.exe` – installer (creates a Start menu and desktop shortcut)
+- `ARAM Comp Overlay-<version>-portable.exe` – single file, no installation
+
+The executables are not code-signed, so Windows SmartScreen will warn on first launch; choose "More info" →
+"Run anyway". Settings and logs live in `%APPDATA%\aram-overlay\`.
+
+## Releasing
+
+Packages are built by GitHub Actions. Bump the version in `package.json`, then:
+
+```bash
+git tag v0.2.0 && git push origin main --tags
+```
+
+The workflow builds the installer and the portable exe, runs the tests, and attaches both to a GitHub release
+for the tag. To build locally: `npm run package` (output in `release/`).
