@@ -118,11 +118,15 @@ The executables are not code-signed, so Windows SmartScreen will warn on first l
 
 ## Releasing
 
-Packages are built by GitHub Actions. Bump the version in `package.json`, then:
+Bump the version in `package.json`, commit, then tag and push:
 
 ```bash
 git tag v0.2.0 && git push origin main --tags
 ```
 
-The workflow builds the installer and the portable exe, runs the tests, and attaches both to a GitHub release
-for the tag. To build locally: `npm run package` (output in `release/`).
+`.github/workflows/release.yml` runs on the **self-hosted runner on the NAS** (GitHub-hosted runners are not
+available for this account): it installs dependencies, runs the tests, cross-builds the Windows installer and the
+portable exe with electron-builder, and attaches both to the GitHub release of the tag.
+
+Fallback when the runner is down: `make release TAG=v0.2.0` builds on the NAS over SSH and publishes the same
+files (setup in [deploy/nas/README.md](deploy/nas/README.md)). Local build only: `npm run package` → `release/`.

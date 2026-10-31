@@ -1,8 +1,8 @@
 # Building releases on the NAS
 
-GitHub-hosted runners are not available for this account, so the Windows packages are built on the NAS
-(UGREEN DXP4800 Plus, Docker) and uploaded to the GitHub release of a tag. Same idea as staffium's
-`deploy/nas/deploy.sh`: the NAS has a clone of the repo and a script that does everything.
+Normally the GitHub workflow builds releases on the self-hosted runner (`myoung34/github-runner`) on the NAS.
+This script is the **fallback** for when the runner is down: the NAS (UGREEN DXP4800 Plus, Docker) builds the
+Windows packages itself and uploads them to the GitHub release of a tag, like staffium's `deploy/nas/deploy.sh`.
 
 ```
 laptop                      GitHub                         NAS (/volume2/docker/aram_overlay)
