@@ -98,7 +98,16 @@ function createWindow() {
   win.setOpacity(store.settings.opacity);
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.webContents.on('console-message', (_e, level, message) => { if (level >= 2) log.warn('[renderer]', message); else log.debug('[renderer]', message); });
+  // Electron >= 35 passes the details on the event object; older versions pass (level, message) arguments
+  const contents = win.webContents as unknown as { on(event: string, listener: (...args: unknown[]) => void): void };
+  contents.on('console-message', (...args: unknown[]) => {
+    const e = (args[0] ?? {}) as { level?: unknown; message?: string };
+    const levelArg = args[1], messageArg = args[2] as string | undefined;
+    const message = e.message ?? messageArg ?? '';
+    const level = e.level ?? levelArg;
+    const serious = typeof level === 'string' ? level === 'warning' || level === 'error' : typeof level === 'number' && level >= 2;
+    if (serious) log.warn('[renderer]', message); else log.debug('[renderer]', message);
+  });
   let saveTimer: NodeJS.Timeout | null = null;
   const saveBounds = () => { if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(() => win && store.setBounds(win.getBounds()), 400); };
   win.on('move', saveBounds);
