@@ -133,7 +133,8 @@ The executables are not code-signed, so Windows SmartScreen will warn on first l
 
 ## Releasing
 
-Bump the version in `package.json`, commit, then tag and push:
+Tag and push (the workflow sets the package version from the tag, so bumping `package.json` is optional but keeps
+`main` in sync):
 
 ```bash
 git tag v0.2.0 && git push origin main --tags
