@@ -146,3 +146,14 @@ portable exe with electron-builder, and attaches both to the GitHub release of t
 
 Fallback when the runner is down: `make release TAG=v0.2.0` builds on the NAS over SSH and publishes the same
 files (setup in [deploy/nas/README.md](deploy/nas/README.md)). Local build only: `npm run package` → `release/`.
+
+## Contributing and security
+
+Pull requests run the CI workflow on a self-hosted runner, so workflows from outside contributors wait for a
+maintainer's approval before they run. Please do not include client logs or snapshots in issues without removing
+summoner names first. Vulnerabilities: see [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE). Not affiliated with or endorsed by Riot Games. League of Legends and Riot Games are trademarks or
+registered trademarks of Riot Games, Inc.

@@ -1,0 +1,44 @@
+name: CI
+
+# Type-check, test and build on every push to main and every pull request.
+# Runs on the self-hosted NAS runner. The repository requires approval before workflows run for pull requests
+# from outside contributors (see scripts/harden-github.ps1), and this job never sees secrets: `pull_request`
+# (not `pull_request_target`) runs with a read-only token and no repository secrets for forks.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, nas]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Type-check
+        run: npx tsc -p tsconfig.json
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: node scripts/build.mjs

@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-windows:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, nas]
     steps:
       - uses: actions/checkout@v4
 

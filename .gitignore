@@ -1,5 +1,8 @@
-node_modules/
-dist/
+*.log
+.env
+.env.*
 debug-dumps/
-release/
 deploy/nas/.env
+dist/
+node_modules/
+release/
