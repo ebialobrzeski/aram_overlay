@@ -13,11 +13,11 @@
     "package": "node scripts/build.mjs && electron-builder --win --publish never"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "electron": "^42.11.16",
-    "electron-builder": "^25.1.8",
-    "esbuild": "^0.24.0",
-    "typescript": "^5.6.0"
+    "@types/node": "^26.6.6",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
   },
   "author": "ebialobrzeski",
   "license": "MIT",
