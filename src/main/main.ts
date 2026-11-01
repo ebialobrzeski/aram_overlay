@@ -6,7 +6,7 @@ import { ChampionRegistry, normalize } from './champions';
 import { DemoState } from './demo';
 import { discover, Lcu } from './lcu';
 import { StateBuilder } from './state';
-import { Store } from './store';
+import { sanitizeBadges, Store } from './store';
 import { BadgeWindow } from './badges';
 import { autoCalibrate } from './autocal';
 import type { Gray } from '../shared/match';
@@ -67,6 +67,7 @@ async function maybeAutoCalibrate(state: TeamState, force = false): Promise<stri
     const next = { ...store.settings.badges, calibratedBy: 'auto' as const };
     if (okBench && fit.bench) { next.benchFirst = fit.bench.first; next.benchLast = fit.bench.last; next.benchRef = fit.bench.count; next.benchAlign = fit.bench.align; }
     if (okTeam && fit.team) { next.teamFirst = fit.team.first; next.teamLast = fit.team.last; }
+    if (sanitizeBadges(next).calibratedBy !== 'auto') { autoCalAttempts++; return `implausible fit rejected (${fit.notes.join('; ') || 'geometry'})`; }
     store.updateSettings({ badges: next });
     settingsVersion++;
     autoCalKey = key; autoCalAttempts = 0;

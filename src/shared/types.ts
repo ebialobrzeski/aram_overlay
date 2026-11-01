@@ -92,8 +92,9 @@ export interface BadgeSettings extends BadgeAnchors {
   calibratedBy: 'none' | 'auto' | 'manual';
   benchRef: number;              // benchFirst/benchLast describe a bench of this many champions
   benchAlign: 'left' | 'center'; // how the bench row grows with the number of champions
+  layout: number;                // client layout the anchors describe; anchors from another layout are discarded
 }
-export interface Badge extends Anchor { text: string; kind: 'pos' | 'neg' | 'zero' | 'best' | 'hint' | 'self'; title?: string }
+export interface Badge extends Anchor { text: string; kind: 'pos' | 'neg' | 'zero' | 'best' | 'hint' | 'self'; title?: string; align?: 'center' | 'left' }
 export interface BadgeModel {
   badges: Badge[];
   calibrating: boolean;

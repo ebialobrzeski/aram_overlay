@@ -138,7 +138,8 @@ test('badges: one per bench slot with my delta, best highlighted, team rows get 
   s.players[0].owned = s.bench.slice();
   const a = analyze({ state: s, lookup, settings: settings() });
   const b = buildBadges(s, a, DEFAULT_SETTINGS.badges);
-  const bench = b.filter(x => x.y === DEFAULT_SETTINGS.badges.benchFirst.y);
+  const bench = b.filter(x => Math.abs(x.y - (DEFAULT_SETTINGS.badges.benchFirst.y + BENCH_BADGE_DY)) < 1e-9);
+  assert.ok(b.filter(x => x.kind === 'self' || x.kind === 'hint').every(x => x.align === 'left'));
   assert.equal(bench.length, 2);
   assert.ok(bench.some(x => x.kind === 'best' && x.text.startsWith('+')));
   const self = b.find(x => x.kind === 'self');
@@ -146,7 +147,7 @@ test('badges: one per bench slot with my delta, best highlighted, team rows get 
 });
 
 import { deriveAnchors, matchCandidates, resizeGray, type Gray, type Template } from '../src/shared/match';
-import { benchSlot } from '../src/shared/badges';
+import { benchSlot, BENCH_BADGE_DY } from '../src/shared/badges';
 
 function fakeIcon(seed: number, size: number): Gray {
   // deterministic texture so every icon is distinct
@@ -191,7 +192,7 @@ test('matcher recovers bench and team anchors from a synthetic screenshot', () =
 test('degenerate saved badge anchors fall back to the defaults', async () => {
   const { sanitizeBadges } = await import('../src/main/store');
   const d = DEFAULT_SETTINGS.badges;
-  const broken = { ...d, calibratedBy: 'manual' as const, benchFirst: { x: 0, y: 0.87 }, benchLast: { x: 1, y: 0.83 }, teamFirst: { x: 0.11, y: 0.19 }, teamLast: { x: 0.15, y: 0.63 } };
+  const broken = { ...d, calibratedBy: 'manual' as const, benchFirst: { x: 0, y: 0.87 }, benchLast: { x: 1, y: 0.83 }, teamFirst: { x: 0.11, y: 0.19 }, teamLast: { x: 0.12, y: 0.63 } };
   const fixed = sanitizeBadges(broken);
   assert.equal(fixed.calibratedBy, 'none');
   assert.deepEqual(fixed.benchFirst, d.benchFirst);
@@ -199,4 +200,8 @@ test('degenerate saved badge anchors fall back to the defaults', async () => {
   assert.deepEqual(fixed.teamFirst, broken.teamFirst, 'a sane team row survives');
   const fine = { ...d, calibratedBy: 'auto' as const, benchFirst: { x: 0.3, y: 0.9 }, benchLast: { x: 0.7, y: 0.9 } };
   assert.equal(sanitizeBadges(fine), fine);
+  const sloped = { ...d, calibratedBy: 'auto' as const, benchFirst: { x: 0.04, y: 0.62 }, benchLast: { x: 0.77, y: 0.52 } };
+  assert.equal(sanitizeBadges(sloped).calibratedBy, 'none', 'a sloping bench row is a bad fit');
+  const stale = { ...d, layout: 1, benchFirst: { x: 0.3, y: 0.9 }, benchLast: { x: 0.7, y: 0.9 }, enabled: false };
+  assert.deepEqual(sanitizeBadges(stale), { ...d, enabled: false }, 'anchors from an older layout are replaced');
 });

@@ -18,7 +18,7 @@ function renderBadges(m: BadgeModel) {
   layer.style.setProperty('--scale', String(m.scale));
   layer.innerHTML = m.badges.map(b => {
     const p = px(b);
-    return `<div class="badge ${b.kind}" style="left:${p.left};top:${p.top}" title="${esc(b.title ?? '')}">${esc(b.text)}</div>`;
+    return `<div class="badge ${b.kind}${b.align === 'left' ? ' left' : ''}" style="left:${p.left};top:${p.top}" title="${esc(b.title ?? '')}">${esc(b.text)}</div>`;
   }).join('');
 }
 

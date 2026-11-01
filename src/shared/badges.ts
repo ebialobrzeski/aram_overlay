@@ -2,6 +2,10 @@ import type { Anchor, Analysis, Badge, BadgeSettings, TeamState } from './types'
 
 export const BENCH_SLOTS = 10; // ARAM bench holds up to 10 champions
 export const TEAM_ROWS = 5;
+// anchors are icon centres; badges sit on the lower edge of a bench icon and under the name in a team row
+export const BENCH_BADGE_DY = 0.03;
+export const TEAM_BADGE_DX = 0.04;
+export const TEAM_BADGE_DY = 0.035;
 
 export function lerp(a: Anchor, b: Anchor, t: number): Anchor {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
@@ -38,7 +42,8 @@ export function buildBadges(state: TeamState, analysis: Analysis | null, s: Badg
   const count = Math.min(state.bench.length, BENCH_SLOTS);
   state.bench.forEach((champ, i) => {
     if (i >= BENCH_SLOTS) return;
-    const pos = benchSlot(s, i, count);
+    const slot = benchSlot(s, i, count);
+    const pos = { x: slot.x, y: slot.y + BENCH_BADGE_DY };
     const pick = analysis.myPicks.find(p => p.championId === champ);
     if (!pick) { badges.push({ ...pos, text: '✕', kind: 'zero', title: `${name(champ)}: not available to you` }); return; }
     if (pick.owned === false) { badges.push({ ...pos, text: '✕', kind: 'zero', title: `${name(champ)}: not owned` }); return; }
@@ -50,7 +55,8 @@ export function buildBadges(state: TeamState, analysis: Analysis | null, s: Badg
   const plan = analysis.plans[0];
   const sorted = [...state.players].sort((a, b) => a.cellId - b.cellId);
   sorted.forEach((p, i) => {
-    const pos = teamRow(s, i);
+    const row = teamRow(s, i);
+    const pos = { x: row.x + TEAM_BADGE_DX, y: row.y + TEAM_BADGE_DY, align: 'left' as const };
     if (p.isLocal) {
       const best = analysis.myPicks[0];
       if (best && best.source !== 'current' && best.delta > 0.05) {

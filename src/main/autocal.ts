@@ -52,10 +52,11 @@ export async function autoCalibrate(lcu: Lcu, state: TeamState, iconCache: Map<n
   }
   if (!templates.length) return null;
 
-  // generous search areas: the bench row somewhere in the lower half, the team column somewhere on the left half
+  // search areas around the known layout (bench along the top edge, team column down the left): generous enough
+  // for the client to move things a little, tight enough that skin thumbnails and splash art do not get matched
   const regions = {
-    bench: { x: 0, y: Math.round(img.height * 0.45), width: img.width, height: img.height - Math.round(img.height * 0.45) },
-    team: { x: 0, y: Math.round(img.height * 0.05), width: Math.round(img.width * 0.5), height: Math.round(img.height * 0.9) },
+    bench: { x: Math.round(img.width * 0.1), y: 0, width: Math.round(img.width * 0.8), height: Math.round(img.height * 0.16) },
+    team: { x: 0, y: Math.round(img.height * 0.08), width: Math.round(img.width * 0.25), height: Math.round(img.height * 0.68) },
   };
 
   const started = Date.now();

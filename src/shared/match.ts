@@ -186,14 +186,16 @@ export function deriveAnchors(
     if (rank.resid < fit.resid * 0.7) { fit = rank; notes.push('bench order differs from the list; used left-to-right rank'); }
     const smallest = Math.min(...b.map(m => m.size));
     const spacing = fit.b;
-    if (spacing > smallest * 0.8 && fit.resid < spacing * 0.2) {
-      const fyl = fitLine(b.map(m => ({ i: bench.get(m.key)!, v: m.y })));
+    const fyl = fitLine(b.map(m => ({ i: bench.get(m.key)!, v: m.y })));
+    // a real bench is a nearly horizontal row of icons a little wider than the icons themselves
+    const plausible = spacing > smallest * 0.8 && spacing > img.width * 0.025 && spacing < img.width * 0.08 && Math.abs(fyl.b) < spacing * 0.15;
+    if (plausible && fit.resid < spacing * 0.2) {
       const first = clamp({ x: fx(fit.a), y: fy(fyl.a) });
       const last = clamp({ x: fx(fit.a + spacing * (benchCount - 1)), y: fy(fyl.a + fyl.b * (benchCount - 1)) });
       const centerX = (first.x + last.x) / 2;
       const align: 'center' | 'left' = Math.abs(centerX - 0.5) < 0.06 ? 'center' : 'left';
       benchFit = { first, last, count: benchCount, align, matches: b.length, score: b.reduce((s, m) => s + m.score, 0) / b.length };
-    } else notes.push(`bench row inconsistent (spacing ${spacing.toFixed(1)}px, residual ${fit.resid.toFixed(1)}px)`);
+    } else notes.push(`bench row inconsistent (spacing ${spacing.toFixed(1)}px, slope ${fyl.b.toFixed(1)}px, residual ${fit.resid.toFixed(1)}px)`);
   } else notes.push(`only ${b.length} bench icon(s) on a common line`);
 
   // ---- team: a vertical column in cell order
@@ -201,7 +203,8 @@ export function deriveAnchors(
   if (t.length >= 2) {
     const fyl = fitLine(t.map(m => ({ i: team.get(m.key)!, v: m.y })));
     const fxl = fitLine(t.map(m => ({ i: team.get(m.key)!, v: m.x })));
-    if (fyl.b > img.height * 0.03 && fyl.resid < fyl.b * 0.2) {
+    // a real team column is nearly vertical with rows roughly a tenth of the window apart
+    if (fyl.b > img.height * 0.06 && fyl.b < img.height * 0.16 && Math.abs(fxl.b) < fyl.b * 0.15 && fyl.resid < fyl.b * 0.2) {
       teamFit = {
         first: clamp({ x: fx(fxl.a), y: fy(fyl.a) }), last: clamp({ x: fx(fxl.a + fxl.b * (rows - 1)), y: fy(fyl.a + fyl.b * (rows - 1)) }),
         matches: t.length, score: t.reduce((s, m) => s + m.score, 0) / t.length,

@@ -46,13 +46,17 @@ export const PROFILES: Record<string, Profile> = {
   },
 };
 
+/** Bump when the client's champion select layout changes so stale calibrations are discarded. */
+export const BADGE_LAYOUT = 2;
+
 export const DEFAULT_SETTINGS: Settings = {
   profile: 'auto',
   badges: {
-    enabled: true, scale: 1, auto: true, calibratedBy: 'none', benchRef: 10, benchAlign: 'left',
-    // rough guesses for the ARAM champion select layout; "Calibrate" in the settings matches them to the client
-    benchFirst: { x: 0.335, y: 0.905 }, benchLast: { x: 0.665, y: 0.905 },
-    teamFirst: { x: 0.115, y: 0.215 }, teamLast: { x: 0.115, y: 0.655 },
+    enabled: true, scale: 1, auto: true, calibratedBy: 'none', benchRef: 10, benchAlign: 'left', layout: BADGE_LAYOUT,
+    // measured on the current ARAM champion select (the client scales uniformly, so fractions hold at every size):
+    // ten fixed bench slots along the top edge, the team as a column of portraits down the left
+    benchFirst: { x: 0.295, y: 0.041 }, benchLast: { x: 0.709, y: 0.041 },
+    teamFirst: { x: 0.065, y: 0.18 }, teamLast: { x: 0.065, y: 0.626 },
   },
   weights: PROFILES.balanced.weights,
   includeNonPartyTrades: false,

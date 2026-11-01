@@ -9,14 +9,16 @@ export interface Persisted {
 }
 
 /**
- * Anchors saved by an older build could be degenerate (markers dragged over a mis-sized badge window end up
- * clamped to x=0 / x=1, or two anchors on top of each other); those are worse than the defaults, so drop them.
+ * Saved anchors can be useless: from a client layout this build no longer models, from markers dragged over a
+ * mis-sized badge window (clamped to x=0 / x=1), or from a matcher fit through the wrong icons (a sloping
+ * "bench"). Those are worse than the defaults, so drop them.
  */
 export function sanitizeBadges(b: BadgeSettings): BadgeSettings {
   const d = DEFAULT_SETTINGS.badges;
-  const inside = (p: { x: number; y: number }) => Number.isFinite(p.x) && Number.isFinite(p.y) && p.x > 0.01 && p.x < 0.99 && p.y > 0.01 && p.y < 0.99;
-  const benchOk = inside(b.benchFirst) && inside(b.benchLast) && Math.abs(b.benchLast.x - b.benchFirst.x) > 0.05;
-  const teamOk = inside(b.teamFirst) && inside(b.teamLast) && Math.abs(b.teamLast.y - b.teamFirst.y) > 0.05;
+  if (b.layout !== d.layout) return { ...d, enabled: b.enabled, scale: b.scale, auto: b.auto };
+  const inside = (p: { x: number; y: number }) => !!p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x > 0.01 && p.x < 0.99 && p.y > 0.01 && p.y < 0.99;
+  const benchOk = inside(b.benchFirst) && inside(b.benchLast) && Math.abs(b.benchLast.x - b.benchFirst.x) > 0.05 && Math.abs(b.benchLast.y - b.benchFirst.y) < 0.03;
+  const teamOk = inside(b.teamFirst) && inside(b.teamLast) && Math.abs(b.teamLast.y - b.teamFirst.y) > 0.05 && Math.abs(b.teamLast.x - b.teamFirst.x) < 0.03;
   if (benchOk && teamOk) return b;
   return {
     ...b,
