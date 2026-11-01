@@ -7,18 +7,23 @@ import { log } from './log';
 export interface ScreenRect { x: number; y: number; width: number; height: number }
 export interface ClientWindow { hwnd: bigint; rect: ScreenRect; minimized: boolean; visible: boolean; foreground: bigint }
 
+interface Rect { left: number; top: number; right: number; bottom: number }
 interface Api {
-  FindWindowW: (cls: string | null, title: string | null) => unknown;
-  GetClientRect: (hwnd: unknown, rect: { left: number; top: number; right: number; bottom: number }) => boolean;
+  FindWindowExW: (parent: unknown, after: unknown, cls: string | null, title: string | null) => unknown;
+  GetClientRect: (hwnd: unknown, rect: Rect) => boolean;
   ClientToScreen: (hwnd: unknown, pt: { x: number; y: number }) => boolean;
   IsIconic: (hwnd: unknown) => boolean;
   IsWindowVisible: (hwnd: unknown) => boolean;
   GetForegroundWindow: () => unknown;
-  GetWindowRect: (hwnd: unknown, rect: { left: number; top: number; right: number; bottom: number }) => boolean;
+  GetWindowRect: (hwnd: unknown, rect: Rect) => boolean;
   address: (ptr: unknown) => bigint | number;
 }
 
+const CLIENT_CLASS = 'RCLIENT';
+const CLIENT_TITLE = 'League of Legends';
+
 let api: Api | null | undefined;
+let lastChosen = 0n;
 
 function load(): Api | null {
   if (api !== undefined) return api;
@@ -30,7 +35,7 @@ function load(): Api | null {
     koffi.struct('RECT', { left: 'int', top: 'int', right: 'int', bottom: 'int' });
     koffi.struct('POINT', { x: 'int', y: 'int' });
     api = {
-      FindWindowW: user32.func('void* __stdcall FindWindowW(str16 cls, str16 title)'),
+      FindWindowExW: user32.func('void* __stdcall FindWindowExW(void* parent, void* after, str16 cls, str16 title)'),
       GetClientRect: user32.func('bool __stdcall GetClientRect(void* hwnd, _Out_ RECT* rect)'),
       ClientToScreen: user32.func('bool __stdcall ClientToScreen(void* hwnd, _Inout_ POINT* pt)'),
       IsIconic: user32.func('bool __stdcall IsIconic(void* hwnd)'),
@@ -49,22 +54,56 @@ function load(): Api | null {
 
 export function available(): boolean { return load() !== null; }
 
+interface Candidate { ptr: unknown; hwnd: bigint; visible: boolean; minimized: boolean; area: number }
+
+/**
+ * Every top-level "League of Legends" window of class RCLIENT. The client process owns several: the real one
+ * plus a pile of hidden 136x39 helper windows with the same class and title, and FindWindowW happily returns
+ * whichever is first in Z-order. So enumerate them all and let the caller pick.
+ */
+function enumerateClientWindows(a: Api): Candidate[] {
+  const out: Candidate[] = [];
+  let after: unknown = null;
+  for (let i = 0; i < 64; i++) {
+    const ptr = a.FindWindowExW(null, after, CLIENT_CLASS, CLIENT_TITLE);
+    const hwnd = BigInt(a.address(ptr));
+    if (hwnd === 0n) break;
+    after = ptr;
+    const r: Rect = { left: 0, top: 0, right: 0, bottom: 0 };
+    const area = a.GetClientRect(ptr, r) ? Math.max(0, r.right - r.left) * Math.max(0, r.bottom - r.top) : 0;
+    out.push({ ptr, hwnd, visible: a.IsWindowVisible(ptr), minimized: a.IsIconic(ptr), area });
+  }
+  return out;
+}
+
+/** The real client window: the visible one with the largest client area; a minimized one counts, hidden stubs do not. */
+function pickClientWindow(a: Api): Candidate | null {
+  const all = enumerateClientWindows(a);
+  const real = all.filter(c => c.visible && (c.area >= 200 * 200 || c.minimized)).sort((x, y) => y.area - x.area);
+  const chosen = real[0] ?? null;
+  const hwnd = chosen?.hwnd ?? 0n;
+  if (hwnd !== lastChosen) {
+    lastChosen = hwnd;
+    log.debug('league client window', chosen ? `${hwnd} (${all.length} candidates, area ${chosen.area}, minimized ${chosen.minimized})` : `none (${all.length} candidates, none visible)`);
+  }
+  return chosen;
+}
+
 /** Position of the League client's client area, in physical screen pixels. */
 export function findLeagueClient(): ClientWindow | null {
   const a = load();
   if (!a) return null;
-  const hwndPtr = a.FindWindowW('RCLIENT', 'League of Legends');
-  const hwnd = BigInt(a.address(hwndPtr));
-  if (hwnd === 0n) return null;
-  const rect = { left: 0, top: 0, right: 0, bottom: 0 };
-  if (!a.GetClientRect(hwndPtr, rect)) return null;
+  const c = pickClientWindow(a);
+  if (!c) return null;
+  const rect: Rect = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (!a.GetClientRect(c.ptr, rect)) return null;
   const pt = { x: 0, y: 0 };
-  if (!a.ClientToScreen(hwndPtr, pt)) return null;
+  if (!a.ClientToScreen(c.ptr, pt)) return null;
   return {
-    hwnd,
+    hwnd: c.hwnd,
     rect: { x: pt.x, y: pt.y, width: rect.right - rect.left, height: rect.bottom - rect.top },
-    minimized: a.IsIconic(hwndPtr),
-    visible: a.IsWindowVisible(hwndPtr),
+    minimized: c.minimized,
+    visible: c.visible,
     foreground: BigInt(a.address(a.GetForegroundWindow())),
   };
 }
@@ -73,10 +112,10 @@ export function findLeagueClient(): ClientWindow | null {
 export function windowRectOf(hwnd: bigint): ScreenRect | null {
   const a = load();
   if (!a) return null;
-  const ptr = a.FindWindowW('RCLIENT', 'League of Legends');
-  if (BigInt(a.address(ptr)) !== hwnd) return null;
-  const r = { left: 0, top: 0, right: 0, bottom: 0 };
-  if (!a.GetWindowRect(ptr, r)) return null;
+  const c = enumerateClientWindows(a).find(w => w.hwnd === hwnd);
+  if (!c) return null;
+  const r: Rect = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (!a.GetWindowRect(c.ptr, r)) return null;
   return { x: r.left, y: r.top, width: r.right - r.left, height: r.bottom - r.top };
 }
 

@@ -187,3 +187,16 @@ test('matcher recovers bench and team anchors from a synthetic screenshot', () =
   assert.ok(Math.abs(benchSlot(s, 0, 4).x * W - (320 - 1.5 * 36)) < 3);
   assert.ok(Math.abs(benchSlot(s, 5, 6).x * W - (320 + 2.5 * 36)) < 3);
 });
+
+test('degenerate saved badge anchors fall back to the defaults', async () => {
+  const { sanitizeBadges } = await import('../src/main/store');
+  const d = DEFAULT_SETTINGS.badges;
+  const broken = { ...d, calibratedBy: 'manual' as const, benchFirst: { x: 0, y: 0.87 }, benchLast: { x: 1, y: 0.83 }, teamFirst: { x: 0.11, y: 0.19 }, teamLast: { x: 0.15, y: 0.63 } };
+  const fixed = sanitizeBadges(broken);
+  assert.equal(fixed.calibratedBy, 'none');
+  assert.deepEqual(fixed.benchFirst, d.benchFirst);
+  assert.deepEqual(fixed.benchLast, d.benchLast);
+  assert.deepEqual(fixed.teamFirst, broken.teamFirst, 'a sane team row survives');
+  const fine = { ...d, calibratedBy: 'auto' as const, benchFirst: { x: 0.3, y: 0.9 }, benchLast: { x: 0.7, y: 0.9 } };
+  assert.equal(sanitizeBadges(fine), fine);
+});
