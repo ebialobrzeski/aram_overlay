@@ -75,6 +75,6 @@
     ]
   },
   "dependencies": {
-    "koffi": "^3.3.6"
+    "koffi": "^3.3.7"
   }
 }
