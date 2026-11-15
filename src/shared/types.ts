@@ -122,6 +122,18 @@ export interface SynergyHit {
   label: string;      // e.g. "Malphite R → Yasuo R"
   champions: number[];
   points: number;
+  tip?: string;       // how to actually execute the combo in game
+}
+
+/** Coaching for one champion inside one specific team. */
+export interface GamePlan {
+  championId: number;
+  role: string;        // e.g. "Main tank / initiator"
+  roleTip: string;     // what that role means in this team, with teammates' names
+  champTips: string[]; // short ARAM tips for the champion's kit
+  combos: { label: string; tip: string; partners: number[] }[];
+  teamPlan: string[];  // win condition of the whole team
+  watchOut: string[];  // weaknesses of the team and how to cover them
 }
 
 export interface TeamScore {
@@ -146,6 +158,7 @@ export interface PickOption {
   partnerForm?: ChampForm;  // for trades: the partner's record on the champion they would receive (mine)
   synergies: SynergyHit[];
   tags: string[];           // short descriptors: "CC", "Poke", ...
+  gamePlan?: GamePlan;      // how to play this pick with the team it would end up in
 }
 
 export interface PlanStep {

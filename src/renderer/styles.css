@@ -134,3 +134,21 @@ button.chip.goal.active { border-color: var(--accent); color: var(--accent); }
 .weight { display: grid; grid-template-columns: 84px 1fr 28px; gap: 5px; align-items: center; font-size: 10px; color: var(--muted); }
 .weight input { width: 100%; }
 details summary { cursor: pointer; color: var(--muted); margin: 5px 0; }
+
+/* ---------- game plan ---------- */
+.pick[data-plan] { cursor: pointer; }
+.pick[data-plan]:hover { background: rgba(255,255,255,.03); }
+.pick.selected { box-shadow: inset 2px 0 0 var(--accent); }
+#gameplan .gp-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+#gameplan .gp-head img { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--accent); }
+#gameplan .gp-role { font-weight: 700; color: var(--accent); }
+#gameplan .gp-roletip { color: var(--text); }
+#gameplan h3 { margin: 7px 0 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+#gameplan ul { margin: 0; padding-left: 16px; }
+#gameplan li { margin: 2px 0; }
+#gameplan .combo { display: flex; gap: 6px; align-items: flex-start; padding: 3px 0; border-top: 1px solid var(--border); }
+#gameplan .combo:first-of-type { border-top: 0; }
+#gameplan .combo .partners { display: flex; gap: 2px; flex: 0 0 auto; }
+#gameplan .combo .partners img { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border); }
+#gameplan .combo .label { color: #b8b0ff; font-weight: 600; }
+#gameplan .watch li { color: #f3a85a; }

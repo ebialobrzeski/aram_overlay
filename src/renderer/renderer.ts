@@ -1,4 +1,4 @@
-import type { Analysis, ChampForm, NumericTrait, Plan, Settings, TeamState, UpdatePayload, Weights } from '../shared/types';
+import type { Analysis, ChampForm, NumericTrait, Plan, Settings, SynergyHit, TeamState, UpdatePayload, Weights } from '../shared/types';
 import { PROFILES, traitLabel, WEIGHT_LABELS } from '../shared/scoring';
 import type { Api } from '../preload';
 
@@ -14,7 +14,14 @@ const WEIGHT_KEYS: (keyof Weights)[] = ['cc', 'aoeCC', 'engage', 'poke', 'frontl
 let last: UpdatePayload | null = null;
 let frozen = false;
 let settingsOpen = false;
+/** champion whose game plan is shown; null = the top-ranked pick */
+let selectedPlan: number | null = null;
 const sectionKeys: Record<string, string> = {};
+
+/** Synergy chip with the "how to execute it" tip as tooltip. */
+function synChip(s: SynergyHit): string {
+  return `<span class="chip syn" title="${esc(s.tip ? `${s.tip} (+${s.points})` : `+${s.points}`)}">${esc(s.label)}</span>`;
+}
 
 function setSection(id: string, key: string, html: () => string) {
   if (sectionKeys[id] === key) return;
@@ -53,6 +60,7 @@ function render(p: UpdatePayload) {
   renderInfo(state, settings, p.demo, analysis);
   renderTeam(state, analysis, icons);
   renderPicks(state, analysis, icons);
+  renderGamePlan(state, analysis, icons);
   renderForm(state, analysis, icons);
   renderPlans(state, analysis, icons);
   syncSettings(settings);
@@ -101,7 +109,7 @@ function renderTeam(state: TeamState, analysis: Analysis | null, icons: Record<n
       const max = 3 * state.players.length;
       return `<div class="bar"><span>${traitLabel(t)}</span><div class="track"><div class="fill" style="width:${Math.min(100, 100 * v / max)}%"></div></div><span class="val">${v}</span></div>`;
     }).join('')}</div>` : '<div></div>';
-    const syn = (analysis?.current.synergies ?? []).map(s => `<span class="chip syn" title="+${s.points}">${esc(s.label)}</span>`).join('');
+    const syn = (analysis?.current.synergies ?? []).map(synChip).join('');
     const warn = (analysis?.current.warnings ?? []).map(w => `<span class="chip warn">${esc(w)}</span>`).join('');
     const bench = state.bench.length
       ? `<div class="bench"><span class="muted">Bench</span>${state.bench.map(id => `<span title="${esc(champName(analysis, id))}">${img(id, icons)}</span>`).join('')}</div>`
@@ -111,7 +119,8 @@ function renderTeam(state: TeamState, analysis: Analysis | null, icons: Record<n
 }
 
 function renderPicks(state: TeamState, analysis: Analysis | null, icons: Record<number, string>) {
-  const key = JSON.stringify([analysis?.computedAt, Object.keys(icons).length, 'picks', frozen]);
+  const shown = shownPlanId(analysis);
+  const key = JSON.stringify([analysis?.computedAt, Object.keys(icons).length, 'picks', frozen, shown]);
   setSection('picks', key, () => {
     if (!analysis || !state.players.some(p => p.isLocal)) return '<h2>Your best picks</h2><div class="empty">Nothing to rank yet</div>';
     const rows = analysis.myPicks.map(o => {
@@ -122,13 +131,13 @@ function renderPicks(state: TeamState, analysis: Analysis | null, icons: Record<
       const action = frozen ? '' : o.source === 'bench' ? `<button class="primary" data-swap="${o.championId}">Swap</button>`
         : o.source === 'trade' || o.source === 'ask' ? `<button data-trade="${o.fromCellId}">Trade</button>` : '';
       const tags = o.tags.slice(0, 4).map(t => `<span class="chip ${t === 'AD' || t === 'AP' || t === 'mixed' ? t : ''}">${esc(t)}</span>`).join('');
-      const syn = o.synergies.slice(0, 2).map(s => `<span class="chip syn">${esc(s.label)}</span>`).join('');
+      const syn = o.synergies.slice(0, 2).map(synChip).join('');
       const owned = o.owned === false ? '<span class="chip warn">not owned</span>' : o.owned === undefined ? '<span class="chip">ownership unknown</span>' : '';
       const mastery = o.masteryPoints ? `<span class="chip" title="mastery points">★ ${fmtPoints(o.masteryPoints)}</span>` : '';
       const form = fmtForm(o.form);
       const partner = o.fromCellId !== undefined && o.partnerForm ? fmtForm(o.partnerForm, `${esc(playerName(state, o.fromCellId))} on ${esc(champName(analysis, state.players.find(p => p.isLocal)!.championId))}:`) : '';
       const curated = analysis.champions[o.championId]?.curated === false ? '<span class="chip warn" title="no curated data, traits guessed from role">approx.</span>' : '';
-      return `<div class="pick ${o.source === 'current' ? 'current' : ''} ${o.owned === false ? 'unavailable' : ''}">
+      return `<div class="pick ${o.source === 'current' ? 'current' : ''} ${o.owned === false ? 'unavailable' : ''} ${o.championId === shown ? 'selected' : ''}" data-plan="${o.championId}" title="Click to see the game plan">
         ${img(o.championId, icons)}
         <div class="body">
           <div class="title"><b>${esc(champName(analysis, o.championId))}</b><span class="src ${o.source}">${src}</span></div>
@@ -138,7 +147,38 @@ function renderPicks(state: TeamState, analysis: Analysis | null, icons: Record<
         ${action}
       </div>`;
     }).join('');
-    return `<h2>Your best picks <span class="sub">(others keep their champion)</span></h2>${rows || '<div class="empty">No options</div>'}`;
+    return `<h2>Your best picks <span class="sub">(others keep their champion · click one for its game plan)</span></h2>${rows || '<div class="empty">No options</div>'}`;
+  });
+}
+
+/** The pick whose plan is shown: the clicked one while it is still an option, else the top-ranked one. */
+function shownPlanId(analysis: Analysis | null): number | undefined {
+  const picks = analysis?.myPicks ?? [];
+  return picks.find(o => o.championId === selectedPlan)?.championId ?? picks[0]?.championId;
+}
+
+function renderGamePlan(state: TeamState, analysis: Analysis | null, icons: Record<number, string>) {
+  const shown = shownPlanId(analysis);
+  const key = JSON.stringify([analysis?.computedAt, Object.keys(icons).length, 'plan', shown]);
+  setSection('gameplan', key, () => {
+    const pick = analysis?.myPicks.find(o => o.championId === shown);
+    const gp = pick?.gamePlan;
+    if (!analysis || !pick || !gp) return '<h2>Game plan</h2><div class="empty">Pick a champion to see how to play it</div>';
+    const best = pick === analysis.myPicks[0];
+    const which = pick.source === 'current' ? 'your current pick' : best ? 'best pick' : pick.source === 'bench' ? 'if you swap' : 'if you trade';
+    const list = (items: string[], cls = '') => items.length ? `<ul class="${cls}">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '';
+    const combos = gp.combos.map(c => `
+      <div class="combo">
+        <span class="partners">${c.partners.map(id => `<span title="${esc(champName(analysis, id))}">${img(id, icons)}</span>`).join('')}</span>
+        <div><span class="label">${esc(c.label)}</span><div>${esc(c.tip)}</div></div>
+      </div>`).join('');
+    const name = esc(champName(analysis, gp.championId));
+    return `<h2>Game plan <span class="sub">${name} · ${which}</span></h2>
+      <div class="gp-head">${img(gp.championId, icons)}<div><div class="gp-role">${esc(gp.role)}</div><div class="gp-roletip">${esc(gp.roleTip)}</div></div></div>
+      ${combos ? `<h3>Combos with your team</h3>${combos}` : '<h3>Combos with your team</h3><div class="muted">No specific combo with these teammates; play your role.</div>'}
+      ${gp.champTips.length ? `<h3>Playing ${name} in ARAM</h3>${list(gp.champTips)}` : ''}
+      <h3>Team plan</h3>${list(gp.teamPlan)}
+      ${gp.watchOut.length ? `<h3>Watch out</h3>${list(gp.watchOut, 'watch')}` : ''}`;
   });
 }
 
@@ -183,7 +223,7 @@ function renderPlan(plan: Plan, i: number, state: TeamState, analysis: Analysis,
     return `<div class="step">${img(s.championId, icons)}<span><b>${who}</b> ${verb(state, s.cellId, 'trades', 'trade')} with <b>${partner}</b> for <b>${champ}</b> ${ask}</span></div>`;
   }).join('');
   const result = state.players.map((p, idx) => `<span title="${esc(p.name)}: ${esc(champName(analysis, plan.assignment[idx]))}">${img(plan.assignment[idx], icons, plan.assignment[idx] !== p.championId ? 'changed' : '')}</span>`).join('');
-  const syn = plan.score.synergies.slice(0, 3).map(s => `<span class="chip syn">${esc(s.label)}</span>`).join('');
+  const syn = plan.score.synergies.slice(0, 3).map(synChip).join('');
   const warn = plan.score.warnings.slice(0, 2).map(w => `<span class="chip warn">${esc(w)}</span>`).join('');
   const own = plan.unverifiedOwnership.length
     ? `<div class="note">Assumes ${plan.unverifiedOwnership.map(c => esc(playerName(state, c))).join(', ')} own${plan.unverifiedOwnership.length === 1 ? 's' : ''} the champion.</div>` : '';
@@ -274,6 +314,17 @@ document.addEventListener('click', e => {
 });
 $('#btn-min').onclick = () => api.minimize();
 $('#btn-close').onclick = () => api.closeWindow();
+
+// click a pick row (not its buttons) to show that champion's game plan
+document.addEventListener('click', e => {
+  const target = e.target as HTMLElement;
+  if (target.closest('button')) return;
+  const row = target.closest('[data-plan]') as HTMLElement | null;
+  if (!row || !last) return;
+  selectedPlan = Number(row.dataset.plan);
+  renderPicks(last.state, last.analysis, last.icons);
+  renderGamePlan(last.state, last.analysis, last.icons);
+});
 
 document.addEventListener('click', async e => {
   const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null;

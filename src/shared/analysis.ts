@@ -1,6 +1,7 @@
 import type { Analysis, Champion, FormEntry, GoalSuggestion, PickOption, Plan, PlanStep, Player, Settings, SynergyHit, TeamFormEntry, TeamScore, TeamState, Weights } from './types';
 import { applyWeights, championTags, comfortScore, computeTerms, fitScore, PROFILES, round, totalOf, WEIGHT_LABELS, type Terms } from './scoring';
 import { traitsFromTags } from './champion_data';
+import { buildGamePlan } from './game_plan';
 
 export type ChampionLookup = (id: number) => Champion | undefined;
 export const AUTO_PROFILE = 'auto';
@@ -220,6 +221,7 @@ export function analyze(input: AnalysisInput): Analysis {
         partnerForm: cand.from !== undefined ? players.find(p => p.cellId === cand.from)?.form?.[me.championId] : undefined,
         synergies: score.synergies.filter(s => s.champions.includes(cand.champ)),
         tags: championTags(champ),
+        gamePlan: buildGamePlan(a.map(lookup), meIdx, score.synergies),
       });
     }
     myPicks.sort((a, b) => b.score - a.score);

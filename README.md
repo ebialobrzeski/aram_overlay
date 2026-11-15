@@ -11,6 +11,17 @@ League client, scores the team composition, and tells you:
   AoE ultimates, enchanters with hypercarries, engage with Orianna, Galio/Taric/Shen follow-ups, and so on.
 - **Comfort picks** – mastery points of you and your party members are read from the client, so plans prefer
   champions each person is strong on.
+- **Game plan** – click any of your pick options to see how to play it with *this* team: your role (tank,
+  enchanter, follow-up, poke...), how to execute each combo with your actual teammates, short ARAM tips for the
+  champion, the team's win condition, and its weak spots. Hover any combo chip for the same execution tip.
+
+### Tweaking the coaching
+
+| What | File |
+| --- | --- |
+| Hand-written pair combos and their execution tips (add your own; unknown pairs get a small score bonus) | `src/shared/combo_tips.ts` |
+| Per-champion ARAM tips | `src/shared/champ_tips.ts` |
+| Role, team plan and weakness rules | `src/shared/game_plan.ts` |
 
 ## Badges on the League client
 
